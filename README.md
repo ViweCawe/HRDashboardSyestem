@@ -48,3 +48,5 @@ Database behaviour checks require a separately published, disposable SQL databas
 Read [architecture](docs/architecture.md), [database rules](docs/database.md), and [the employee CSV contract](docs/employee-import.md) before extending the implementation.
 
 Package references are already included. See [packages and restore troubleshooting](docs/packages.md) for the package inventory and Git Bash steps to resolve NU1100 source-mapping errors using the repository's `NuGet.Config`.
+
+To repeat Phase 1 verification in Git Bash, run `bash scripts/verify-phase-one.sh`. The database-project handoff and instance/version checks are in [database next steps](docs/database-next-steps.md).

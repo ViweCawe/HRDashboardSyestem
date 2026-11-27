@@ -1,6 +1,8 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using ClassLibrary.ImportAndStaging.Data;
+using ClassLibrary.ImportAndStaging.Models;
 using ClassLibrary.PeoplAndEmployment.Data;
 using ClassLibrary.PeoplAndEmployment.Models;
 using Microsoft.AspNetCore.Authentication;
@@ -24,6 +26,10 @@ public sealed class HrAccessTests
     [InlineData("/imports/employees", "HRReader", HttpStatusCode.Forbidden)]
     [InlineData("/employees", "HRReader", HttpStatusCode.OK)]
     [InlineData("/employees", "HRAdmin", HttpStatusCode.OK)]
+    [InlineData("/employees/1", "OrdinaryUser", HttpStatusCode.Forbidden)]
+    [InlineData("/imports/employees", "OrdinaryUser", HttpStatusCode.Forbidden)]
+    [InlineData("/employees/1", "HRReader", HttpStatusCode.OK)]
+    [InlineData("/imports/employees", "HRAdmin", HttpStatusCode.OK)]
     public async Task HrPagesEnforceTheirPolicies(string path, string? role, HttpStatusCode expected)
     {
         await using var factory = new HrTestApplication();
@@ -31,7 +37,16 @@ public sealed class HrAccessTests
         if (role is not null) client.DefaultRequestHeaders.Add("X-Test-Role", role);
         var response = await client.GetAsync(path);
         Assert.Equal(expected, response.StatusCode);
-        if (expected == HttpStatusCode.OK) Assert.Contains("No employee records", await response.Content.ReadAsStringAsync());
+        if (expected == HttpStatusCode.OK)
+        {
+            var expectedContent = path switch
+            {
+                "/imports/employees" => "Employee imports",
+                "/employees/1" => "Employee engagement not found.",
+                _ => "No employee records"
+            };
+            Assert.Contains(expectedContent, await response.Content.ReadAsStringAsync());
+        }
     }
 
     private sealed class HrTestApplication : WebApplicationFactory<Program>
@@ -49,6 +64,7 @@ public sealed class HrAccessTests
                     options.DefaultForbidScheme = "Test";
                 });
                 services.AddScoped<IEmployeeRepository, EmptyEmployeeRepository>();
+                services.AddScoped<IEmployeeImportRepository, EmptyImportRepository>();
             });
         }
     }
@@ -63,6 +79,14 @@ public sealed class HrAccessTests
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), "Test")));
         }
     }
+    private sealed class EmptyImportRepository : IEmployeeImportRepository
+    {
+        public Task<IReadOnlyList<ImportBatch>> GetRecentAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportBatch>>([]);
+        public Task<IReadOnlyList<ImportIssue>> GetIssuesAsync(long batchId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportIssue>>([]);
+        public Task<ImportBatch> StageAsync(string fileName, string fileHash, DateTime asOfDate, string importedBy, EmployeeImportPreview preview, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task PublishAsync(long batchId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private sealed class EmptyEmployeeRepository : IEmployeeRepository
     {
         public Task<IReadOnlyList<EmployeeListItem>> GetAsync(DateTime asOfDate, string? search = null, int offset = 0, int pageSize = 50, CancellationToken cancellationToken = default)
