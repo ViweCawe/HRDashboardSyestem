@@ -7,7 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="HoursAndLeave\" />
+    <Compile Remove="HoursAndLeave\**" />
+    <EmbeddedResource Remove="HoursAndLeave\**" />
+    <None Remove="HoursAndLeave\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="ImportAndStaging\" />
     <Folder Include="PeoplAndEmployment\" />
   </ItemGroup>
