@@ -82,7 +82,31 @@ Hours and leave have a table/model foundation, but their import pages remain mar
 **Coming next**. This test slice handles employee CSV files only; it does not parse
 Excel workbooks or automatically classify promotions.
 
-## Verification
+## If an import fails
+
+The error banner identifies the failed step, a safe error code and a reference.
+The same reference is logged with the underlying exception in the server console.
+Share the code and reference when reporting a problem; do not upload the employee
+export or share connection strings/passwords for diagnosis.
+
+- `HR-CONNECTION-CONFIG`: the HR connection setting is missing or malformed.
+- `HR-SQL-2812`, `HR-SQL-208`, `HR-SQL-207`: a required procedure, table or column
+  could not be found in the connected database. Check the connection target and
+  deploy the current schema.
+- `HR-SQL-4060`, `HR-SQL-4064`, `HR-SQL-18456`: SQL Server could not open the
+  requested/default database or authenticate the application account.
+- `HR-SQL--2`: a connection or command timed out.
+- Other `HR-SQL-*` codes retain the SQL error number for investigation.
+- `HR-FILE-READ`: reselect the CSV and retry.
+- `HR-REQUEST`: consult the console entry with the matching reference.
+
+For local database setup errors, stop the app, run
+`bash scripts/setup-hr-database.sh`, and restart it. This restores the HR connection
+setting for this project and deploys the current procedures after the disposable
+checks pass. Production banners omit local setup commands. Infrastructure exception messages,
+connection strings and stack traces are never copied into these banners.
+
+## Automated and local verification
 
 The automated suite covers source validation, upload service boundaries, input-file
 selection/validation, publish interaction, HTTP access policies, batch-review states,

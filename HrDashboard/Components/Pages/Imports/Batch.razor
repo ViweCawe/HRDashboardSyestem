@@ -2,7 +2,7 @@
 @attribute [Authorize(Policy = HrPolicies.Import)]
 @rendermode InteractiveServer
 @inject IEmployeeImportRepository Imports
-@inject ILogger<Batch> Logger
+@inject HrErrorReporter Errors
 
 <PageTitle>Review import · HR Dashboard</PageTitle>
 <a class="hr-back-link" href="imports/employees"><AppIcon Name="back" />Back to import centre</a>
@@ -48,7 +48,7 @@ else if (batch is not null)
             batch = await Imports.GetBatchAsync(BatchId);
             if (batch is not null) { issues = await Imports.GetIssuesAsync(BatchId); await LoadRowsAsync(); }
         }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { error = Errors.Report(ex, "Load import batch"); }
         finally { loading = false; }
     }
     private async Task LoadRowsAsync() => rows = await Imports.GetRowsAsync(BatchId, offset, 50, string.IsNullOrEmpty(rowStatus) ? null : rowStatus);
@@ -56,7 +56,7 @@ else if (batch is not null)
     {
         busy = true; error = null;
         try { offset = Math.Max(0, nextOffset); await LoadRowsAsync(); }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { error = Errors.Report(ex, "Load import preview"); }
         finally { busy = false; }
     }
     private Task FilterRowsAsync() => ChangePageAsync(0);
@@ -68,8 +68,7 @@ else if (batch is not null)
         busy = true; error = null;
         try { await Imports.PublishAsync(BatchId); await LoadAsync(); message = "Import published successfully. Employee records and their history are now available."; }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50001) { error = ex.Message; }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { error = Errors.Report(ex, "Publish employee import"); }
         finally { busy = false; }
     }
-    private void Failure(Exception ex) { Logger.LogError(ex, "Unable to load or publish employee batch {BatchId}", BatchId); error = "We couldn't complete this request. Refresh the page or contact your administrator."; }
 }

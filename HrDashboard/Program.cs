@@ -3,6 +3,7 @@ using HrDashboard.Security;
 using HrDashboard.Components;
 using HrDashboard.Components.Account;
 using HrDashboard.Data;
+using HrDashboard.Diagnostics;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<DevelopmentAdminProvisioner>();
+builder.Services.AddScoped<HrErrorReporter>();
 builder.Services.AddHrData(builder.Configuration.GetConnectionString("HrConnection"));
 builder.Services.AddAuthorization(options =>
 {

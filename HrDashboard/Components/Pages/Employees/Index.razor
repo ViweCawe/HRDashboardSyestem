@@ -2,7 +2,7 @@
 @attribute [Authorize(Policy = HrPolicies.Read)]
 @rendermode InteractiveServer
 @inject IEmployeeRepository Employees
-@inject ILogger<Index> Logger
+@inject HrErrorReporter Errors
 
 <PageTitle>Employees · HR Dashboard</PageTitle>
 <PageHeader Eyebrow="YOUR WORKFORCE" Title="Employee records" Description="Explore current and previous engagements. Open a record to follow employment history and detected changes.">
@@ -51,7 +51,7 @@
         busy = true; error = null;
         try { rows = await Employees.GetAsync(asOf, string.IsNullOrWhiteSpace(search) ? null : search.Trim(), offset, PageSize); }
         catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
-        { rows = []; Logger.LogError(ex, "Unable to load employee records"); error = "Employee records are temporarily unavailable. Refresh or contact your administrator."; }
+        { rows = []; error = Errors.Report(ex, "Load employee records"); }
         finally { busy = false; }
     }
 }

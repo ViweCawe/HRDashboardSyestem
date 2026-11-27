@@ -6,7 +6,7 @@
 @inject EmployeeImportService ImportService
 @inject AuthenticationStateProvider Authentication
 @inject NavigationManager Navigation
-@inject ILogger<Employees> Logger
+@inject HrErrorReporter Errors
 
 <PageTitle>Import centre · HR Dashboard</PageTitle>
 <PageHeader Eyebrow="DATA MANAGEMENT" Title="Import centre" Description="Bring your Sage employee export into the workspace. Validate first, review the records, then publish." />
@@ -43,7 +43,7 @@ else { <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>File</t
     private async Task LoadRecentAsync()
     {
         try { batches = await Imports.GetRecentAsync(); }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { error = Errors.Report(ex, "Load recent imports"); }
     }
     private async Task StageAsync()
     {
@@ -59,12 +59,7 @@ else { <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>File</t
             Navigation.NavigateTo($"imports/employees/{batch.ImportBatchId}");
         }
         catch (InvalidDataException ex) { error = ex.Message; }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException or IOException) { Failure(ex); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException or IOException) { error = Errors.Report(ex, "Validate and stage employee file"); }
         finally { busy = false; }
-    }
-    private void Failure(Exception ex)
-    {
-        Logger.LogError(ex, "Unable to load or stage employee imports");
-        error = "We couldn't complete this request. Please refresh or contact your administrator.";
     }
 }

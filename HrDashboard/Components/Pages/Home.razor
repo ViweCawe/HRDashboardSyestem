@@ -1,7 +1,7 @@
 @page "/"
 @inject AuthenticationStateProvider Authentication
 @inject IEmployeeImportRepository Imports
-@inject ILogger<Home> Logger
+@inject HrErrorReporter Errors
 
 <PageTitle>Overview · HR Dashboard</PageTitle>
 <PageHeader Eyebrow="PEOPLE &amp; REPORTING" Title="A clearer view of your people." Description="Bring employee data together, keep a reliable history and make every import count.">
@@ -34,6 +34,6 @@
         if (!user.IsInRole("HRAdmin") && !user.IsInRole("HRReader")) return;
         try { summary = await Imports.GetDashboardAsync(); }
         catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
-        { Logger.LogError(ex, "Unable to load HR overview"); error = "The overview is temporarily unavailable. Please refresh or contact your administrator."; }
+        { error = Errors.Report(ex, "Load HR overview"); }
     }
 }

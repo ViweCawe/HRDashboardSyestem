@@ -1,7 +1,7 @@
 @page "/employees/{EmploymentId:long}"
 @attribute [Authorize(Policy = HrPolicies.Read)]
 @inject IEmployeeRepository Employees
-@inject ILogger<Overview> Logger
+@inject HrErrorReporter Errors
 
 <PageTitle>Employee overview · HR Dashboard</PageTitle>
 <a class="hr-back-link" href="employees"><AppIcon Name="back" />Back to employee records</a>
@@ -27,6 +27,6 @@ else if (overview is not null)
         error = null;
         try { overview = await Employees.GetOverviewAsync(EmploymentId); }
         catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
-        { overview = null; Logger.LogError(ex, "Unable to load employee overview"); error = "Employee history is temporarily unavailable. Refresh or contact your administrator."; }
+        { overview = null; error = Errors.Report(ex, "Load employee history"); }
     }
 }
