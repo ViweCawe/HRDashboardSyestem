@@ -1,0 +1,75 @@
+@page "/imports/employees/{BatchId:long}"
+@attribute [Authorize(Policy = HrPolicies.Import)]
+@rendermode InteractiveServer
+@inject IEmployeeImportRepository Imports
+@inject ILogger<Batch> Logger
+
+<PageTitle>Review import · HR Dashboard</PageTitle>
+<a class="hr-back-link" href="imports/employees"><AppIcon Name="back" />Back to import centre</a>
+<PageHeader Eyebrow="EMPLOYEE IMPORT" Title="Review your employee records" Description="Check the export details, preview the records and resolve validation issues before publication.">
+    <Actions>@if (batch is not null) { <StatusBadge Status="@batch.Status" /> }</Actions>
+</PageHeader>
+<MessageBanner Message="@error" Tone="error" /><MessageBanner Message="@message" />
+@if (loading) { <div class="hr-loading" role="status"><span class="hr-spinner"></span>Loading import details…</div> }
+else if (batch is null && error is null) { <section class="hr-panel"><EmptyState Title="Import batch not found" Description="Return to the import centre to choose an employee batch."><a class="btn btn-outline-secondary" href="imports/employees">View imports</a></EmptyState></section> }
+else if (batch is not null)
+{
+    <ol class="hr-steps" aria-label="Import progress"><li class="done"><span><AppIcon Name="check" /></span>File uploaded</li><li class="@(batch.Status == "Published" ? "done" : "current")"><span>2</span>Review &amp; validate</li><li class="@(batch.Status == "Published" ? "current" : "")"><span>3</span>Publish records</li></ol>
+    <div class="hr-metrics"><MetricCard Label="Records in file" Value="@batch.RowCount.ToString("N0")" Hint="All rows in this employee export" Icon="people" /><MetricCard Label="Valid records" Value="@batch.ValidRowCount.ToString("N0")" Hint="Passed file validation" Icon="check" /><MetricCard Label="Records to review" Value="@batch.InvalidRowCount.ToString("N0")" Hint="Correct these rows in the source" Icon="alert" /><MetricCard Label="Export as-of date" Value="@batch.SourceAsOfDate.ToString("dd MMM yyyy")" Hint="The date this snapshot represents" Icon="history" /></div>
+    <section class="hr-panel"><div class="hr-panel-header"><div><h2>@batch.FileName</h2><p>Batch #@batch.ImportBatchId · Employee records</p></div>
+    @if (batch.Status == "Staged" && batch.IssueCount == 0) { <button class="btn btn-primary" disabled="@busy" @onclick="PublishAsync"><AppIcon Name="check" />@(busy ? "Publishing…" : batch.RowCount == 1 ? "Publish 1 record" : $"Publish {batch.RowCount:N0} records")</button> }
+    else if (batch.Status == "Published") { <a class="btn btn-primary" href="@($"employees?asOf={batch.SourceAsOfDate:yyyy-MM-dd}")">View employees<AppIcon Name="arrow" /></a> }
+    else { <a class="btn btn-outline-secondary" href="imports/employees"><AppIcon Name="upload" />Upload corrected file</a> }
+    </div><div class="hr-panel-body"><p class="hr-muted hr-small mb-0">@(batch.Status == "Published" ? "These records are published. This same file and date will not create duplicate records." : batch.IssueCount > 0 ? "This batch needs review. Correct the source file, then upload a new version. Publication is blocked while issues remain." : "File validation passed. Publication will also check existing people and employment history before saving any changes.")</p></div></section>
+    @if (issues.Count > 0)
+    {
+        <section class="hr-panel"><div class="hr-panel-header"><div><h2>Validation issues <span class="hr-tag">@batch.IssueCount</span></h2><p>Showing the first 200 issues. Use the source row number to find each record.</p></div></div><div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>Source row</th><th>Column</th><th>What needs attention</th></tr></thead><tbody>@foreach (var issue in issues) { <tr><td><strong>@issue.SourceRowNumber</strong></td><td>@issue.SourceField</td><td>@issue.Message</td></tr> }</tbody></table></div></section>
+    }
+    <section class="hr-panel"><div class="hr-panel-header"><div><h2>Record preview</h2><p>Review 50 records per page. Identity numbers and passports are not displayed here.</p></div><div class="hr-field"><label class="visually-hidden" for="row-status">Filter preview status</label><select id="row-status" class="form-select" @bind="rowStatus" @bind:after="FilterRowsAsync" disabled="@busy"><option value="">All records</option><option value="Valid">Valid</option><option value="Invalid">Needs review</option><option value="Published">Published</option></select></div></div>
+    @if (rows.Count == 0) { <EmptyState Icon="search" Title="No matching records" Description="Choose another status to see records in this batch." /> }
+    else { <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>Row</th><th>Employee</th><th>Code</th><th>Engaged</th><th>Department</th><th>Job title</th><th>Status</th></tr></thead><tbody>@foreach (var row in rows) { <tr><td>@row.SourceRowNumber</td><td><strong>@(row.DisplayName ?? "Not supplied")</strong><small>@row.CompanyName</small></td><td><span class="hr-code">@(row.EmployeeCode ?? "Not supplied")</span></td><td>@row.DateEngagedText</td><td>@row.DepartmentName</td><td>@row.JobTitleName</td><td><StatusBadge Status="@row.ValidationStatus" /></td></tr> }</tbody></table></div> }
+    <div class="hr-table-footer"><span>Page @(offset / 50 + 1) · @batch.RowCount.ToString("N0") records in batch</span><div class="hr-pagination"><button class="btn btn-outline-secondary" disabled="@(busy || offset == 0)" @onclick="PreviousAsync">Previous</button><button class="btn btn-outline-secondary" disabled="@(busy || rows.Count < 50)" @onclick="NextAsync">Next</button></div></div></section>
+}
+@code {
+    [Parameter] public long BatchId { get; set; }
+    private EmployeeImportBatchSummary? batch;
+    private IReadOnlyList<EmployeeImportPreviewRow> rows = [];
+    private IReadOnlyList<ImportIssue> issues = [];
+    private string? error, message;
+    private string rowStatus = "";
+    private int offset;
+    private bool loading, busy;
+    protected override async Task OnParametersSetAsync() { batch = null; rows = []; issues = []; message = null; offset = 0; rowStatus = ""; await LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        loading = true; error = null;
+        try
+        {
+            batch = await Imports.GetBatchAsync(BatchId);
+            if (batch is not null) { issues = await Imports.GetIssuesAsync(BatchId); await LoadRowsAsync(); }
+        }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        finally { loading = false; }
+    }
+    private async Task LoadRowsAsync() => rows = await Imports.GetRowsAsync(BatchId, offset, 50, string.IsNullOrEmpty(rowStatus) ? null : rowStatus);
+    private async Task ChangePageAsync(int nextOffset)
+    {
+        busy = true; error = null;
+        try { offset = Math.Max(0, nextOffset); await LoadRowsAsync(); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        finally { busy = false; }
+    }
+    private Task FilterRowsAsync() => ChangePageAsync(0);
+    private Task PreviousAsync() => ChangePageAsync(offset - 50);
+    private Task NextAsync() => ChangePageAsync(offset + 50);
+    private async Task PublishAsync()
+    {
+        if (busy || batch is null || batch.Status != "Staged" || batch.IssueCount != 0) return;
+        busy = true; error = null;
+        try { await Imports.PublishAsync(BatchId); await LoadAsync(); message = "Import published successfully. Employee records and their history are now available."; }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50001) { error = ex.Message; }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        finally { busy = false; }
+    }
+    private void Failure(Exception ex) { Logger.LogError(ex, "Unable to load or publish employee batch {BatchId}", BatchId); error = "We couldn't complete this request. Refresh the page or contact your administrator."; }
+}

@@ -96,6 +96,9 @@ public sealed class EmployeeImportServiceTests
         }
         public Task<IReadOnlyList<ImportBatch>> GetRecentAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<ImportIssue>> GetIssuesAsync(long batchId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EmployeeImportBatchSummary?> GetBatchAsync(long batchId, CancellationToken cancellationToken = default) => Task.FromResult<EmployeeImportBatchSummary?>(null);
+        public Task<IReadOnlyList<EmployeeImportPreviewRow>> GetRowsAsync(long batchId, int offset = 0, int pageSize = 50, string? status = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<EmployeeImportPreviewRow>>([]);
+        public Task<ImportDashboardSummary> GetDashboardAsync(CancellationToken cancellationToken = default) => Task.FromResult(new ImportDashboardSummary());
         public Task PublishAsync(long batchId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

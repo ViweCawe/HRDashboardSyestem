@@ -13,6 +13,19 @@ Internal HR reporting built with the existing Blazor Interactive Server applicat
 
 Hours and leave ingestion, Excel workbook parsing, dashboard charts and the remaining employee-profile modules are **not implemented yet**. Their models and SQL tables are included so subsequent features share the same foundation.
 
+## Test the Blazor import pages
+
+```bash
+bash scripts/setup-hr-database.sh
+bash scripts/setup-hr-access.sh
+dotnet run --project HrDashboard
+```
+
+The access script prompts for your own local HRAdmin credentials. Then sign in,
+open **Import centre**, download the example CSV and test upload, validation,
+review and publication. The [UI testing walkthrough](docs/ui-import-testing.md)
+includes source dates, expected results and history checks.
+
 ## Run locally
 
 For Windows Git Bash with SQL Server 2025 LocalDB installed, the database setup is:

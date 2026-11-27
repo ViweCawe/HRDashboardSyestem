@@ -48,3 +48,16 @@ After pulling a project-file update, reload DashboardDatabase or close and reope
 HrDashboardApp.slnx from the same working folder. Tables, StoredProcedures and
 Schemas should appear in the project. Reloading the project does not require
 publishing or recreating the database.
+
+## Blazor import workflow
+
+The import centre selects a file and source date, then delegates validation and
+staging to EmployeeImportService. A durable batch route queries its summary,
+validation issues and paged preview via stored procedures. Publication is explicit
+and remains protected by the HRAdmin policy and SQL transaction. The employee link
+carries the batch's source date into the directory's as-of filter.
+
+Shared Razor components and shared CSS keep the sidebar, headings, status badges,
+metrics and empty/error states consistent. Identity's existing authentication
+logic is retained. The optional administrator bootstrap is a local command gated
+to Development, never a public route or automatic first-user grant.

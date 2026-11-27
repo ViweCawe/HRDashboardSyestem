@@ -1,81 +1,39 @@
 @implements IDisposable
-
 @inject NavigationManager NavigationManager
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">HrDashboard</a>
-    </div>
-</div>
-
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-
-        <AuthorizeView Policy="@HrPolicies.Read" Context="hrReader">
-            <div class="nav-item px-3"><NavLink class="nav-link" href="employees">Employees</NavLink></div>
-        </AuthorizeView>
-        <AuthorizeView Policy="@HrPolicies.Import" Context="hrAdmin">
-            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/employees">Employee imports</NavLink></div>
-        </AuthorizeView>
-
+<a href="" class="hr-brand"><span class="hr-brand-mark">HR</span><span><strong>People workspace</strong><small>TABLE MOUNTAIN</small></span></a>
+<input id="hr-navigation-toggle" type="checkbox" class="hr-nav-toggle" />
+<label for="hr-navigation-toggle" class="hr-nav-toggle-label"><AppIcon Name="menu" /> Menu</label>
+<div class="hr-nav-body">
+    <p class="hr-nav-caption">WORKSPACE</p>
+    <nav class="hr-nav" aria-label="Main navigation">
+        <NavLink href="" Match="NavLinkMatch.All"><AppIcon Name="overview" />Overview</NavLink>
+        <AuthorizeView Policy="@HrPolicies.Read" Context="hrReader"><NavLink href="employees"><AppIcon Name="people" />Employees</NavLink></AuthorizeView>
+        <AuthorizeView Policy="@HrPolicies.Import" Context="hrAdmin"><NavLink href="imports/employees"><AppIcon Name="upload" />Import centre</NavLink></AuthorizeView>
+    </nav>
+    <div class="hr-sidebar-note"><span class="hr-sidebar-note-icon"><AppIcon Name="shield" /></span><strong>One connected history</strong><p>Every engagement, linked to the right person.</p></div>
+    <div class="hr-nav-account">
         <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Manage">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <form action="Account/Logout" method="post">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
-                        <button type="submit" class="nav-link">
-                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
-                        </button>
-                    </form>
-                </div>
+                <a href="Account/Manage"><AppIcon Name="account" />My account</a>
+                <form action="Account/Logout" method="post"><AntiforgeryToken /><input type="hidden" name="ReturnUrl" value="@currentUrl" /><button type="submit"><AppIcon Name="logout" />Sign out</button></form>
             </Authorized>
-            <NotAuthorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Register">
-                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Login">
-                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
-                    </NavLink>
-                </div>
-            </NotAuthorized>
+            <NotAuthorized><a href="Account/Login"><AppIcon Name="account" />Sign in</a><a href="Account/Register"><AppIcon Name="people" />Create account</a></NotAuthorized>
         </AuthorizeView>
-    </nav>
+    </div>
+    <div class="hr-sidebar-footer">HR DASHBOARD<span>People first. Data informed.</span></div>
 </div>
-
 @code {
-    private string? currentUrl;
-
+    private string currentUrl = "";
     protected override void OnInitialized()
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
     }
-
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
         StateHasChanged();
     }
-
-    public void Dispose()
-    {
-        NavigationManager.LocationChanged -= OnLocationChanged;
-    }
+    public void Dispose() => NavigationManager.LocationChanged -= OnLocationChanged;
 }
-

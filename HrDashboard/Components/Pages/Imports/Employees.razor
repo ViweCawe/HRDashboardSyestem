@@ -5,103 +5,66 @@
 @inject IEmployeeImportRepository Imports
 @inject EmployeeImportService ImportService
 @inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
 @inject ILogger<Employees> Logger
 
-<PageTitle>Employee imports</PageTitle>
-<h1>Employee imports</h1>
-<p>Upload the Sage employee CSV. Review validation results, then publish the batch to make its snapshots available.</p>
-<p>Hours and leave import screens will follow. This screen accepts employee files only.</p>
-<div class="row g-3 mb-3">
-    <div class="col-md-3"><label for="source-date" class="form-label">Export as-of date</label><InputDate id="source-date" class="form-control" @bind-Value="asOf" disabled="@busy" /></div>
-    <div class="col-md-3"><label for="delimiter" class="form-label">CSV delimiter</label><select id="delimiter" class="form-select" @bind="delimiter" disabled="@busy"><option value=",">Comma</option><option value=";">Semicolon</option></select></div>
-    <div class="col-md-6"><label for="employee-file" class="form-label">Employee CSV (maximum 5 MB)</label><InputFile id="employee-file" class="form-control" accept=".csv" OnChange="StageAsync" disabled="@busy" /></div>
+<PageTitle>Import centre · HR Dashboard</PageTitle>
+<PageHeader Eyebrow="DATA MANAGEMENT" Title="Import centre" Description="Bring your Sage employee export into the workspace. Validate first, review the records, then publish." />
+<ol class="hr-steps" aria-label="Import progress"><li class="current"><span>1</span>Upload file</li><li><span>2</span>Review &amp; validate</li><li><span>3</span>Publish records</li></ol>
+<div class="hr-source-grid" aria-label="Available data sources">
+    <div class="hr-source-card selected"><AppIcon Name="people" /><div><strong>Employee records</strong><small>Active &amp; terminated employees</small></div><span class="hr-tag">Available</span></div>
+    <div class="hr-source-card unavailable"><AppIcon Name="clock" /><div><strong>Hours</strong><small>Clocking &amp; overtime records</small></div><span class="hr-tag">Coming next</span></div>
+    <div class="hr-source-card unavailable"><AppIcon Name="file" /><div><strong>Leave balances</strong><small>Balances by employee &amp; leave type</small></div><span class="hr-tag">Coming next</span></div>
 </div>
-@if (message is not null) { <div class="alert alert-success" role="status">@message</div> }
-@if (error is not null) { <div class="alert alert-danger" role="alert">@error</div> }
-@if (busy) { <p role="status">Processing import…</p> }
-@if (selected is not null)
-{
-    <h2>Batch @selected.ImportBatchId</h2>
-    <p>@selected.FileName · As of @selected.SourceAsOfDate.ToString("dd/MM/yyyy") · @selected.RowCount rows · @selected.Status</p>
-    @if (issues.Count == 0 && selected.Status == "Staged")
-    {
-        <p>File validation passed. Publication also checks existing identities and engagement history. No employee data changes until you publish.</p>
-        <button class="btn btn-primary mb-3" disabled="@busy" @onclick="PublishAsync">Publish validated batch</button>
-    }
-    @if (issues.Count > 0)
-    {
-        <p>Showing up to 200 issues. Correct these values in the source file and stage it again.</p>
-        <div class="table-responsive"><table class="table"><thead><tr><th>Row</th><th>Column</th><th>Issue</th></tr></thead><tbody>
-        @foreach (var issue in issues) { <tr><td>@issue.SourceRowNumber</td><td>@issue.SourceField</td><td>@issue.Message</td></tr> }
-        </tbody></table></div>
-    }
-}
-<h2>Recent batches</h2>
-<div class="table-responsive"><table class="table"><thead><tr><th>Batch</th><th>File</th><th>As of</th><th>Rows</th><th>Status</th></tr></thead><tbody>
-@foreach (var b in batches) { <tr><td><button class="btn btn-link p-0" disabled="@busy" @onclick="() => SelectAsync(b)">@b.ImportBatchId</button></td><td>@b.FileName</td><td>@b.SourceAsOfDate.ToString("dd/MM/yyyy")</td><td>@b.RowCount</td><td>@b.Status</td></tr> }
-</tbody></table></div>
-
+<MessageBanner Message="@error" Tone="error" />
+<div class="hr-two-col">
+    <section class="hr-panel"><div class="hr-panel-header"><div><h2>Upload employee records</h2><p>Use the employee list exported from Sage.</p></div><span class="hr-tag">CSV</span></div><div class="hr-panel-body">
+        <div class="hr-form-grid"><div class="hr-field"><label for="source-date">Export as-of date</label><InputDate id="source-date" class="form-control" @bind-Value="asOf" disabled="@busy" /><p>The date represented by this export.</p></div><div class="hr-field"><label for="delimiter">CSV delimiter</label><select id="delimiter" class="form-select" @bind="delimiter" disabled="@busy"><option value=",">Comma (,)</option><option value=";">Semicolon (;)</option></select><p>Choose the separator used in your file.</p></div></div>
+        <div class="hr-upload-box"><span class="hr-upload-symbol"><AppIcon Name="upload" /></span><h3>Choose your employee export</h3><p>UTF-8 CSV · Up to 5 MB · Maximum 20,000 records</p><label class="visually-hidden" for="employee-file">Employee CSV file</label><InputFile id="employee-file" class="form-control hr-file-input" accept=".csv" OnChange="ChooseFile" disabled="@busy" />@if (file is not null) { <p class="hr-file-info">@file.Name · @((file.Size / 1024d).ToString("N1")) KB</p> }</div>
+        <div class="hr-form-footer"><small><AppIcon Name="shield" />Employee records change only after you publish a validated batch.</small><button class="btn btn-primary" disabled="@(busy || file is null)" @onclick="StageAsync">@(busy ? "Validating…" : "Validate file")<AppIcon Name="arrow" /></button></div>
+    </div></section>
+    <aside class="hr-note-card"><AppIcon Name="file" /><h3>Before you upload</h3><p>A consistent export helps us connect the right records.</p><ul class="hr-checklist"><li><AppIcon Name="check" />Include employee code and engagement date.</li><li><AppIcon Name="check" />Supply an ID number, or passport with country.</li><li><AppIcon Name="check" />Keep company and status columns included.</li><li><AppIcon Name="check" />Use dates in day/month/year format.</li></ul><a class="hr-inline-link mb-3" href="examples/employees.csv" download="employees-example.csv"><AppIcon Name="file" />Download example CSV</a><p class="hr-small">Reappointments remain separate engagements. Repeating the same file and date will not create duplicates.</p></aside>
+</div>
+<section class="hr-panel"><div class="hr-panel-header"><div><h2>Recent employee imports</h2><p>Track validation and publication for your latest 50 batches.</p></div><button class="btn btn-link" disabled="@busy" @onclick="LoadRecentAsync"><AppIcon Name="history" />Refresh</button></div>
+@if (batches.Count == 0) { <EmptyState Icon="upload" Title="Your first import starts here" Description="Choose an employee export above. After validation, your batch and any issues will appear here." /> }
+else { <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>File</th><th>Export date</th><th>Records</th><th>Status</th><th><span class="visually-hidden">Open batch</span></th></tr></thead><tbody>
+@foreach (var batch in batches) { <tr><td><a href="@($"imports/employees/{batch.ImportBatchId}")"><strong>@batch.FileName</strong></a><small>Batch #@batch.ImportBatchId</small></td><td>@batch.SourceAsOfDate.ToString("dd MMM yyyy")</td><td>@batch.RowCount.ToString("N0")</td><td><StatusBadge Status="@batch.Status" /></td><td><a class="hr-icon-link" href="@($"imports/employees/{batch.ImportBatchId}")" aria-label="@($"Review batch {batch.ImportBatchId}")"><AppIcon Name="arrow" /></a></td></tr> }
+</tbody></table></div> }
+</section>
 @code {
-    private const long MaxFileSize = EmployeeImportService.MaxFileSize;
     private DateTime asOf = DateTime.Today;
     private string delimiter = ",";
+    private IBrowserFile? file;
     private bool busy;
-    private string? message, error;
-    private ImportBatch? selected;
+    private string? error;
     private IReadOnlyList<ImportBatch> batches = [];
-    private IReadOnlyList<ImportIssue> issues = [];
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadRecentAsync();
+    private void ChooseFile(InputFileChangeEventArgs args) { file = args.FileCount == 1 ? args.File : null; error = null; }
+    private async Task LoadRecentAsync()
     {
         try { batches = await Imports.GetRecentAsync(); }
         catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
     }
-    private async Task StageAsync(InputFileChangeEventArgs args)
+    private async Task StageAsync()
     {
-        if (busy) return;
-        busy = true; message = error = null; selected = null; issues = [];
+        if (busy || file is null) return;
+        busy = true; error = null;
         try
         {
-            var file = args.File;
-            if (!Path.GetExtension(file.Name).Equals(".csv", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Select a CSV export.");
-            if (file.Size > MaxFileSize) throw new InvalidDataException("The CSV exceeds 5 MB.");
-            await using var stream = file.OpenReadStream(MaxFileSize);
-            var state = await Authentication.GetAuthenticationStateAsync();
-            var actor = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("An authenticated user is required.");
-            selected = await ImportService.StageAsync(stream, file.Name, asOf, actor, delimiter);
-            issues = await Imports.GetIssuesAsync(selected.ImportBatchId);
-            batches = await Imports.GetRecentAsync();
-            message = selected.Status == "Published" ? "This exact file and reporting date were already published. No duplicate records were created." : "Batch staged. Review its results before publication.";
+            if (file.Size > EmployeeImportService.MaxFileSize) throw new InvalidDataException("Choose a CSV file smaller than 5 MB.");
+            await using var stream = file.OpenReadStream(EmployeeImportService.MaxFileSize);
+            var user = (await Authentication.GetAuthenticationStateAsync()).User;
+            var actor = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("Sign in before importing.");
+            var batch = await ImportService.StageAsync(stream, file.Name, asOf, actor, delimiter);
+            Navigation.NavigateTo($"imports/employees/{batch.ImportBatchId}");
         }
         catch (InvalidDataException ex) { error = ex.Message; }
         catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException or IOException) { Failure(ex); }
         finally { busy = false; }
     }
-    private async Task SelectAsync(ImportBatch batch)
-    {
-        if (busy) return;
-        busy = true; message = error = null;
-        try { selected = batch; issues = await Imports.GetIssuesAsync(batch.ImportBatchId); }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
-        finally { busy = false; }
-    }
-    private async Task PublishAsync()
-    {
-        if (busy || selected is null) return;
-        busy = true; message = error = null;
-        try
-        {
-            await Imports.PublishAsync(selected.ImportBatchId);
-            batches = await Imports.GetRecentAsync();
-            selected = batches.FirstOrDefault(b => b.ImportBatchId == selected.ImportBatchId);
-            message = "Employee import published successfully. Employee snapshots and history are available.";
-        }
-        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50001) { error = ex.Message; }
-        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
-        finally { busy = false; }
-    }
     private void Failure(Exception ex)
     {
-        Logger.LogError(ex, "Employee import operation failed");
-        error = "The import could not complete. Check the HR database configuration and deployment, then retry.";
+        Logger.LogError(ex, "Unable to load or stage employee imports");
+        error = "We couldn't complete this request. Please refresh or contact your administrator.";
     }
 }

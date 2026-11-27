@@ -3,29 +3,20 @@
 @inject IEmployeeRepository Employees
 @inject ILogger<Overview> Logger
 
-<PageTitle>Employee overview</PageTitle>
-<a href="employees">Back to employees</a>
-<h1>Employee overview</h1>
-@if (error is not null) { <div class="alert alert-danger" role="alert">@error</div> }
-else if (overview is null) { <p>Employee engagement not found.</p> }
-else
+<PageTitle>Employee overview · HR Dashboard</PageTitle>
+<a class="hr-back-link" href="employees"><AppIcon Name="back" />Back to employee records</a>
+<MessageBanner Message="@error" Tone="error" />
+@if (overview is null && error is null) { <PageHeader Title="Employee overview" Description="Employment details and linked history." /><section class="hr-panel"><EmptyState Icon="people" Title="Employee engagement not found." Description="Choose another record from the employee directory."><a class="btn btn-outline-secondary" href="employees">View employees</a></EmptyState></section> }
+else if (overview is not null)
 {
-    <h2>@overview.Employee.DisplayName</h2>
-    <p>@overview.Employee.EmployeeCode · @overview.Employee.CompanyName</p>
-    <p>Engaged: @overview.Employee.DateEngaged.ToString("dd/MM/yyyy") · Termination: @(overview.Employee.TerminationDate?.ToString("dd/MM/yyyy") ?? "Not recorded")</p>
-    <h3>Employment engagements</h3>
-    <p>These records belong to the same person. A reappointment has its own employee code.</p>
-    <ul>@foreach (var e in overview.Engagements) { <li><a href="@($"employees/{e.EmploymentId}")">@e.EmployeeCode</a> — @e.DateEngaged.ToString("dd/MM/yyyy") — @(e.StatusName ?? "Not supplied")</li> }</ul>
-    <h3>Snapshot history</h3>
-    <div class="table-responsive"><table class="table"><thead><tr><th>As of</th><th>Status</th><th>Department</th><th>Cost centre</th><th>Job title</th><th>Employment type</th></tr></thead><tbody>
-    @foreach (var h in overview.History) { <tr><td>@h.SnapshotDate.ToString("dd/MM/yyyy")</td><td>@h.StatusName</td><td>@h.DepartmentName</td><td>@h.CostCentreName</td><td>@h.JobTitleName</td><td>@(h.EmploymentTypeName ?? "Not supplied")</td></tr> }
-    </tbody></table></div>
-    <h3>Detected changes</h3>
-    <p>Changes without a supplied effective date require HR confirmation. A job-title change is not automatically classified as a promotion.</p>
-    @if (overview.Changes.Count == 0) { <p>No changes have been detected since the first snapshot.</p> }
-    else { <div class="table-responsive"><table class="table"><thead><tr><th>Field</th><th>Previous value</th><th>New value</th><th>Effective date</th><th>Classification</th></tr></thead><tbody>
-    @foreach (var c in overview.Changes) { <tr><td>@c.FieldName</td><td>@c.OldValue</td><td>@c.NewValue</td><td>@(c.EffectiveDate?.ToString("dd/MM/yyyy") ?? "Not supplied")</td><td>@(c.IsConfirmed ? c.ChangeType : "Awaiting HR confirmation")</td></tr> }
-    </tbody></table></div> }
+    <section class="hr-panel"><div class="hr-panel-header"><div class="hr-record-title"><span class="hr-record-avatar">@EmployeeInitials.For(overview.Employee.DisplayName)</span><div><p class="hr-eyebrow mb-1">EMPLOYEE OVERVIEW</p><h1 class="mb-1">@overview.Employee.DisplayName</h1><span class="hr-muted hr-small">@overview.Employee.JobTitleName · @overview.Employee.CompanyName</span></div></div><StatusBadge Status="@overview.Employee.StatusName" /></div><div class="hr-panel-body"><div class="hr-profile-meta"><span>Employee code<strong>@overview.Employee.EmployeeCode</strong></span><span>Engaged<strong>@overview.Employee.DateEngaged.ToString("dd MMM yyyy")</strong></span><span>Department<strong>@(overview.Employee.DepartmentName ?? "Not supplied")</strong></span><span>Termination<strong>@(overview.Employee.TerminationDate?.ToString("dd MMM yyyy") ?? "Not recorded")</strong></span></div></div></section>
+    <div class="hr-metrics"><MetricCard Label="Linked engagements" Value="@overview.Engagements.Count.ToString()" Hint="Employment records for this person" Icon="people" /><MetricCard Label="Stored snapshots" Value="@overview.History.Count.ToString()" Hint="For the selected engagement" Icon="history" /><MetricCard Label="Detected changes" Value="@overview.Changes.Count.ToString()" Hint="For the selected engagement" Icon="file" /><MetricCard Label="Employment type" Value="@(overview.Employee.EmploymentTypeName ?? "Not supplied")" Hint="As recorded in the latest snapshot" Icon="shield" /></div>
+    <section class="hr-panel" id="engagements"><div class="hr-panel-header"><div><h2>Employment engagements</h2><p>One person, connected across each appointment. Select an engagement to see its own history.</p></div></div><div class="hr-engagements">@foreach (var e in overview.Engagements) { <a class="hr-engagement-card @(e.EmploymentId == EmploymentId ? "current" : "")" href="@($"employees/{e.EmploymentId}")"><strong>@e.EmployeeCode</strong><span>Engaged @e.DateEngaged.ToString("dd MMM yyyy")</span><span>@(e.StatusName ?? "Not supplied") @(e.EmploymentId == EmploymentId ? "· Selected" : "")</span></a> }</div></section>
+    <section class="hr-panel" id="history"><div class="hr-panel-header"><div><h2>Snapshot history</h2><p>What the employee export recorded on each reporting date.</p></div><AppIcon Name="history" /></div><div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>As of</th><th>Department</th><th>Cost centre</th><th>Job title</th><th>Employment type</th><th>Status</th></tr></thead><tbody>@foreach (var h in overview.History) { <tr><td><strong>@h.SnapshotDate.ToString("dd MMM yyyy")</strong></td><td>@h.DepartmentName</td><td>@h.CostCentreName</td><td>@h.JobTitleName</td><td>@(h.EmploymentTypeName ?? "Not supplied")</td><td><StatusBadge Status="@h.StatusName" /></td></tr> }</tbody></table></div></section>
+    <section class="hr-panel" id="changes"><div class="hr-panel-header"><div><h2>Detected changes</h2><p>A job-title change is not automatically a promotion. Unconfirmed changes remain marked for HR review.</p></div></div>
+    @if (overview.Changes.Count == 0) { <EmptyState Icon="check" Title="No changes detected yet" Description="The first snapshot is your baseline. Later exports will show changes against it." /> }
+    else { <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>Changed detail</th><th>Previous value</th><th>New value</th><th>Effective date</th><th>Classification</th></tr></thead><tbody>@foreach (var c in overview.Changes) { <tr><td><strong>@c.FieldName</strong></td><td>@(c.OldValue ?? "Not supplied")</td><td>@(c.NewValue ?? "Not supplied")</td><td>@(c.EffectiveDate?.ToString("dd MMM yyyy") ?? "Not supplied")</td><td>@(c.IsConfirmed ? c.ChangeType : "Awaiting HR confirmation")</td></tr> }</tbody></table></div> }
+    </section>
 }
 @code {
     [Parameter] public long EmploymentId { get; set; }
@@ -36,6 +27,6 @@ else
         error = null;
         try { overview = await Employees.GetOverviewAsync(EmploymentId); }
         catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
-        { overview = null; Logger.LogError(ex, "Unable to load employee overview"); error = "Employee data is unavailable. Check the HR database configuration and deployment."; }
+        { overview = null; Logger.LogError(ex, "Unable to load employee overview"); error = "Employee history is temporarily unavailable. Refresh or contact your administrator."; }
     }
 }

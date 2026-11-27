@@ -50,7 +50,13 @@ async Task Rejected(long batchId, string expectedReason, string message)
 }
 var first = await Stage(header + "\n" + rows, firstDate);
 Check(first.Status == "Staged", "Valid employee file stages successfully");
+var stagedSummary = await imports.GetBatchAsync(first.ImportBatchId);
+Check(stagedSummary is { RowCount: 3, ValidRowCount: 3, IssueCount: 0 }, "Batch review summarises validated employee records");
+var previewRows = await imports.GetRowsAsync(first.ImportBatchId, 0, 50, "Valid");
+Check(previewRows.Count == 3 && previewRows[0].SourceRowNumber == 2, "Batch preview returns source rows in order");
+Check((await imports.GetRowsAsync(first.ImportBatchId, 1, 1)).Count == 1, "Batch preview supports paging");
 await imports.PublishAsync(first.ImportBatchId);
+Check((await imports.GetBatchAsync(first.ImportBatchId))?.PublishedRowCount == 3, "Published batch review shows published records");
 Check(await EngagementCount() == 3, "New codes create separate engagements and recycled codes do not collapse them");
 var people = await sql.ExecuteScalarAsync<int>("SELECT COUNT(DISTINCT e.PersonId) FROM hr.Employment e JOIN hr.Company c ON c.CompanyId=e.CompanyId WHERE c.Code=@company", new { company });
 Check(people == 2, "Re-employed person keeps one PersonId while the recycled-code holder has a different PersonId");
@@ -82,5 +88,8 @@ await Rejected(older.ImportBatchId, "older export cannot overwrite", "Older expo
 var invalid = await Stage(header + $"\nBAD,Missing,Identity,01/01/2026,{company} - {companyName},A - Active,,,,A001 - Administrator,OPS - Operations,CON - Contract", firstDate);
 Check(invalid.Status == "Review" && (await imports.GetIssuesAsync(invalid.ImportBatchId)).Count > 0, "Invalid source rows remain staged with review issues");
 await Rejected(invalid.ImportBatchId, "Resolve the source validation errors", "Validation errors block publication");
+var dashboard = await imports.GetDashboardAsync();
+Check(dashboard.EmployeeRecords >= 3 && dashboard.PublishedImports >= 2, "Workspace totals reflect persisted records and imports");
+Check((await imports.GetBatchAsync(invalid.ImportBatchId)) is { InvalidRowCount: 1, IssueCount: > 0 }, "Invalid batch review reports blocked rows and issues");
 Console.WriteLine("Database behaviour checks completed. Drop the disposable database after review.");
 return 0;

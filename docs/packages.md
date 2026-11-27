@@ -65,3 +65,14 @@ choosing the next fix.
 at version **170.6.60**. Restore it with `dotnet tool restore --configfile NuGet.Config`.
 This is deployment tooling, not an additional application package reference.
 The Git Bash database setup restores and invokes this local tool automatically.
+
+## UI testing and local access setup
+
+The test project also references `Microsoft.EntityFrameworkCore.InMemory` **10.0.15**
+for isolated Identity provisioning checks and `bunit` **2.15.2** for Blazor upload
+and publication interaction tests. They are test-only dependencies, not substitutes
+for the SQL Server behaviour checks.
+
+The local tool manifest now includes `dotnet-ef` **10.0.15**, matching the existing
+Identity EF packages. `scripts/setup-hr-access.sh` restores it and applies Identity
+migrations before the explicit Development-only account setup command.

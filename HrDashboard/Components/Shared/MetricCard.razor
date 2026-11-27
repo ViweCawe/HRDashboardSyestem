@@ -1,0 +1,7 @@
+<article class="hr-metric"><div class="hr-metric-label">@Label<AppIcon Name="@Icon" /></div><strong>@Value</strong><p>@Hint</p></article>
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "—";
+    [Parameter] public string Hint { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "overview";
+}

@@ -1,0 +1,68 @@
+using System.Security.Claims;
+using Bunit;
+using ClassLibrary.ImportAndStaging.Data;
+using ClassLibrary.ImportAndStaging.Services;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+using UploadPage = HrDashboard.Components.Pages.Imports.Employees;
+using ReviewPage = HrDashboard.Components.Pages.Imports.Batch;
+
+namespace HrDashboard.Tests;
+
+public sealed class ImportInteractionTests : BunitContext
+{
+    private const string ValidCsv = "Employee Code,First Name,Last Name,Date Engaged,Company,Employee Status,ID Number\nEX002,Alex,Example,01/02/2026,001 - Company,A - Active,TEST-PERSON-001";
+    public ImportInteractionTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLogging();
+        Services.AddSingleton<IEmployeeImportRepository, HrAccessTests.FixtureImportRepository>();
+        Services.AddSingleton<EmployeeCsvReader>();
+        Services.AddSingleton<EmployeeImportService>();
+        Services.AddSingleton<AuthenticationStateProvider, TestAuthentication>();
+    }
+
+    [Fact]
+    public void SelectingAndValidatingACsvOpensItsReviewPage()
+    {
+        var page = Render<UploadPage>();
+        Assert.True(ValidateButton(page).HasAttribute("disabled"));
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(ValidCsv, "employees.csv"));
+        Assert.False(ValidateButton(page).HasAttribute("disabled"));
+        ValidateButton(page).Click();
+        page.WaitForAssertion(() => Assert.EndsWith("imports/employees/41", Services.GetRequiredService<NavigationManager>().Uri));
+    }
+
+    [Fact]
+    public void AnInvalidCsvShowsTheErrorAndDoesNotNavigateToPublication()
+    {
+        var page = Render<UploadPage>();
+        var originalUri = Services.GetRequiredService<NavigationManager>().Uri;
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("Employee Code\nEX002", "bad.csv"));
+        ValidateButton(page).Click();
+        page.WaitForAssertion(() => Assert.Contains("Missing columns", page.Find("[role=alert]").TextContent));
+        Assert.Equal(originalUri, Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
+    public void PublishingAValidatedBatchReplacesTheActionWithTheEmployeeLink()
+    {
+        var page = Render<ReviewPage>(parameters => parameters.Add(p => p.BatchId, 41));
+        page.FindAll("button").Single(b => b.TextContent.Contains("Publish 1 record")).Click();
+        page.WaitForAssertion(() => Assert.Contains("Import published successfully", page.Markup));
+        Assert.Single(page.FindAll("a"), a => a.GetAttribute("href") == "employees?asOf=2026-07-31");
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Publish 1 record"));
+    }
+
+    private static AngleSharp.Dom.IElement ValidateButton(IRenderedComponent<UploadPage> page)
+        => page.FindAll("button").Single(b => b.TextContent.Contains("Validate file"));
+
+    private sealed class TestAuthentication : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(ClaimTypes.NameIdentifier, "test-user"), new Claim(ClaimTypes.Role, "HRAdmin")], "Test"))));
+    }
+}

@@ -70,6 +70,9 @@
     <Build Include="Schemas\hr.sql" />
     <Build Include="StoredProcedures\Employees\spEmployee_List.sql" />
     <Build Include="StoredProcedures\Employees\spEmployee_Overview.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Dashboard.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Get.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Rows.sql" />
     <Build Include="StoredProcedures\Imports\spEmployeeImport_Issues.sql" />
     <Build Include="StoredProcedures\Imports\spEmployeeImport_List.sql" />
     <Build Include="StoredProcedures\Imports\spEmployeeImport_Publish.sql" />

@@ -1,7 +1,39 @@
-﻿@page "/"
+@page "/"
+@inject AuthenticationStateProvider Authentication
+@inject IEmployeeImportRepository Imports
+@inject ILogger<Home> Logger
 
-<PageTitle>Home</PageTitle>
-
-<h1>Welcome to the HR Dashboard!</h1>
-
-<p> HR Dashboard System to track and manage employee data</p>
+<PageTitle>Overview · HR Dashboard</PageTitle>
+<PageHeader Eyebrow="PEOPLE &amp; REPORTING" Title="A clearer view of your people." Description="Bring employee data together, keep a reliable history and make every import count.">
+    <Actions><AuthorizeView Policy="@HrPolicies.Import"><a class="btn btn-primary" href="imports/employees"><AppIcon Name="upload" />Import employee data</a></AuthorizeView></Actions>
+</PageHeader>
+<MessageBanner Message="@error" Tone="error" />
+<AuthorizeView Policy="@HrPolicies.Read">
+    <Authorized>
+        <div class="hr-metrics">
+            <MetricCard Label="Employee records" Value="@(summary?.EmployeeRecords.ToString("N0") ?? "—")" Hint="Separate employment engagements" Icon="people" />
+            <MetricCard Label="Published imports" Value="@(summary?.PublishedImports.ToString("N0") ?? "—")" Hint="Available for employee reporting" Icon="check" />
+            <MetricCard Label="Needs review" Value="@(summary?.NeedsReview.ToString("N0") ?? "—")" Hint="Files with validation issues" Icon="alert" />
+            <MetricCard Label="Latest employee data" Value="@(summary?.LatestSnapshotDate?.ToString("dd MMM yyyy") ?? "No data yet")" Hint="Most recent published export date" Icon="history" />
+        </div>
+        <section class="hr-welcome"><div><p class="hr-eyebrow">YOUR NEXT STEP</p><h2>Turn your Sage export into<br />a connected employee history.</h2><p>Review the file, resolve any issues and publish when the records are ready.</p></div><a class="btn" href="employees">Explore employees<AppIcon Name="arrow" /></a></section>
+        <div class="hr-two-col"><section class="hr-panel"><div class="hr-panel-header"><div><h2>A simple path from file to insight</h2><p>Every published record stays connected to its source.</p></div></div><div class="hr-panel-body"><ImportWorkflow /></div></section><section class="hr-note-card"><AppIcon Name="history" /><h3>History stays with the person</h3><p>Reappointments get a new employee code and a separate engagement. Earlier records remain linked to the same person.</p><a class="hr-inline-link mt-3" href="employees">View employee records<AppIcon Name="arrow" /></a></section></div>
+    </Authorized>
+    <NotAuthorized>
+        <section class="hr-welcome"><div><p class="hr-eyebrow">ONE CONNECTED WORKSPACE</p><h2>Employee records.<br />A history you can follow.</h2><p>Import Sage employee files, review the details and see how your workforce changes over time.</p></div><a class="btn" href="Account/Login">Sign in to get started<AppIcon Name="arrow" /></a></section>
+        <AuthorizeView Context="accountAccess"><Authorized><MessageBanner Tone="info" Message="Your account is awaiting HR access. An HR administrator can grant access to employee records and imports." /></Authorized></AuthorizeView>
+        <section class="hr-panel"><div class="hr-panel-header"><div><h2>From export to employee history</h2><p>A clear review process for your HR data.</p></div></div><div class="hr-panel-body"><ImportWorkflow /></div></section>
+    </NotAuthorized>
+</AuthorizeView>
+@code {
+    private ImportDashboardSummary? summary;
+    private string? error;
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        if (!user.IsInRole("HRAdmin") && !user.IsInRole("HRReader")) return;
+        try { summary = await Imports.GetDashboardAsync(); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
+        { Logger.LogError(ex, "Unable to load HR overview"); error = "The overview is temporarily unavailable. Please refresh or contact your administrator."; }
+    }
+}

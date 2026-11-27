@@ -14,6 +14,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<DevelopmentAdminProvisioner>();
 builder.Services.AddHrData(builder.Configuration.GetConnectionString("HrConnection"));
 builder.Services.AddAuthorization(options =>
 {
@@ -48,6 +49,27 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 var app = builder.Build();
+
+// The local operator supplies credentials through the interactive setup script.
+// No default password, public bootstrap endpoint or automatic administrator exists.
+var bootstrapAt = Array.IndexOf(args, "--bootstrap-hr-admin");
+if (bootstrapAt >= 0)
+{
+    try
+    {
+        var email = bootstrapAt + 1 < args.Length ? args[bootstrapAt + 1] : string.Empty;
+        var password = Environment.GetEnvironmentVariable("HR_BOOTSTRAP_PASSWORD") ?? string.Empty;
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<DevelopmentAdminProvisioner>().ProvisionAsync(email, password);
+        Console.WriteLine("Local HRAdmin account is ready. Sign in with the email and password you supplied.");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("Local account setup failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

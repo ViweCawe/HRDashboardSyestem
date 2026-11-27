@@ -1,0 +1,23 @@
+<svg class="@CssClass" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="@PathData" /></svg>
+@code {
+    [Parameter] public string Name { get; set; } = "file";
+    [Parameter] public string CssClass { get; set; } = "";
+    private string PathData => Name switch
+    {
+        "overview" => "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+        "upload" => "M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5",
+        "people" => "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8m6 10v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+        "check" => "m5 12 4 4L19 6",
+        "history" => "M3 11a9 9 0 1 1 2.64 6.36M3 4v7h7m2-4v5l3 2",
+        "arrow" => "M5 12h14m-5-5 5 5-5 5",
+        "back" => "M19 12H5m5-5-5 5 5 5",
+        "search" => "M21 21l-5-5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
+        "alert" => "m10.3 3.9-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0M12 9v4m0 4h.01",
+        "shield" => "M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6zm-4 10 3 3 5-6",
+        "menu" => "M4 6h16M4 12h16M4 18h16",
+        "logout" => "M9 21H4V3h5m7 14 5-5-5-5m-9 5h14",
+        "account" => "M20 21v-2a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v2M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+        "clock" => "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0m-9-5v5l3 2",
+        _ => "M14 2H5v20h14V7zm0 0v6h6M8 12h8m-8 4h6"
+    };
+}

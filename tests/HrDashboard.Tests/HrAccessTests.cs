@@ -30,6 +30,9 @@ public sealed class HrAccessTests
     [InlineData("/imports/employees", "OrdinaryUser", HttpStatusCode.Forbidden)]
     [InlineData("/employees/1", "HRReader", HttpStatusCode.OK)]
     [InlineData("/imports/employees", "HRAdmin", HttpStatusCode.OK)]
+    [InlineData("/imports/employees/41", null, HttpStatusCode.Unauthorized)]
+    [InlineData("/imports/employees/41", "HRReader", HttpStatusCode.Forbidden)]
+    [InlineData("/imports/employees/41", "OrdinaryUser", HttpStatusCode.Forbidden)]
     public async Task HrPagesEnforceTheirPolicies(string path, string? role, HttpStatusCode expected)
     {
         await using var factory = new HrTestApplication();
@@ -41,15 +44,15 @@ public sealed class HrAccessTests
         {
             var expectedContent = path switch
             {
-                "/imports/employees" => "Employee imports",
+                "/imports/employees" => "Import centre",
                 "/employees/1" => "Employee engagement not found.",
-                _ => "No employee records"
+                _ => "All employment engagements"
             };
             Assert.Contains(expectedContent, await response.Content.ReadAsStringAsync());
         }
     }
 
-    private sealed class HrTestApplication : WebApplicationFactory<Program>
+    internal sealed class HrTestApplication : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -63,8 +66,8 @@ public sealed class HrAccessTests
                     options.DefaultChallengeScheme = "Test";
                     options.DefaultForbidScheme = "Test";
                 });
-                services.AddScoped<IEmployeeRepository, EmptyEmployeeRepository>();
-                services.AddScoped<IEmployeeImportRepository, EmptyImportRepository>();
+                services.AddScoped<IEmployeeRepository, FixtureEmployeeRepository>();
+                services.AddSingleton<IEmployeeImportRepository, FixtureImportRepository>();
             });
         }
     }
@@ -79,19 +82,39 @@ public sealed class HrAccessTests
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), "Test")));
         }
     }
-    private sealed class EmptyImportRepository : IEmployeeImportRepository
+    internal sealed class FixtureImportRepository : IEmployeeImportRepository
     {
-        public Task<IReadOnlyList<ImportBatch>> GetRecentAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportBatch>>([]);
-        public Task<IReadOnlyList<ImportIssue>> GetIssuesAsync(long batchId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportIssue>>([]);
-        public Task<ImportBatch> StageAsync(string fileName, string fileHash, DateTime asOfDate, string importedBy, EmployeeImportPreview preview, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task PublishAsync(long batchId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        private readonly HashSet<long> published = [];
+        public Task<IReadOnlyList<ImportBatch>> GetRecentAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportBatch>>([
+            new() { ImportBatchId = 41, FileName = "employee-export.csv", SourceAsOfDate = new(2026, 7, 31), RowCount = 1, Status = published.Contains(41) ? "Published" : "Staged" },
+            new() { ImportBatchId = 42, FileName = "employees-to-review.csv", SourceAsOfDate = new(2026, 7, 31), RowCount = 1, Status = "Review" },
+            new() { ImportBatchId = 43, FileName = "employees-previous.csv", SourceAsOfDate = new(2026, 6, 30), RowCount = 1, Status = "Published" }
+        ]);
+        public Task<IReadOnlyList<ImportIssue>> GetIssuesAsync(long batchId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportIssue>>(batchId == 42 ? [new() { SourceRowNumber = 2, SourceField = "ID Number", Message = "Supply a reliable person identifier.", Severity = "Error" }] : []);
+        public Task<ImportBatch> StageAsync(string fileName, string fileHash, DateTime asOfDate, string importedBy, EmployeeImportPreview preview, CancellationToken cancellationToken = default)
+            => Task.FromResult(new ImportBatch { ImportBatchId = preview.Issues.Count > 0 ? 42 : 41, Status = preview.Issues.Count > 0 ? "Review" : "Staged" });
+        public Task<EmployeeImportBatchSummary?> GetBatchAsync(long batchId, CancellationToken cancellationToken = default) => Task.FromResult(batchId is 41 or 42 or 43 or 44 ? new EmployeeImportBatchSummary
+        { ImportBatchId = batchId, FileName = "employee-export.csv", SourceAsOfDate = new DateTime(2026, 7, 31), Status = Status(batchId), RowCount = 1, ValidRowCount = batchId == 42 ? 0 : 1, InvalidRowCount = batchId == 42 ? 1 : 0, IssueCount = batchId == 42 ? 1 : 0, PublishedRowCount = Status(batchId) == "Published" ? 1 : 0 } : null);
+        public Task<IReadOnlyList<EmployeeImportPreviewRow>> GetRowsAsync(long batchId, int offset = 0, int pageSize = 50, string? status = null, CancellationToken cancellationToken = default)
+        {
+            var rowStatus = batchId == 42 ? "Invalid" : Status(batchId) == "Published" ? "Published" : "Valid";
+            if (offset > 0 || status is not null && status != rowStatus) return Task.FromResult<IReadOnlyList<EmployeeImportPreviewRow>>([]);
+            return Task.FromResult<IReadOnlyList<EmployeeImportPreviewRow>>([new() { SourceRowNumber = 2, EmployeeCode = "EX002", DisplayName = batchId == 44 ? "<img src=x onerror=alert(1)>" : "Alex Example", DateEngagedText = "01/02/2026", CompanyName = "Demonstration Company", DepartmentName = "Operations", JobTitleName = "Supervisor", ValidationStatus = rowStatus }]);
+        }
+        public Task<ImportDashboardSummary> GetDashboardAsync(CancellationToken cancellationToken = default) => Task.FromResult(new ImportDashboardSummary { EmployeeRecords = 2, PublishedImports = 1, NeedsReview = 1, ReadyToPublish = 1, LatestSnapshotDate = new(2026, 7, 31) });
+        public Task PublishAsync(long batchId, CancellationToken cancellationToken = default) { published.Add(batchId); return Task.CompletedTask; }
+        private string Status(long id) => id == 42 ? "Review" : id == 43 || published.Contains(id) ? "Published" : "Staged";
     }
 
-    private sealed class EmptyEmployeeRepository : IEmployeeRepository
+    private sealed class FixtureEmployeeRepository : IEmployeeRepository
     {
+        private static EmployeeListItem Employee => new() { PersonId = 1, EmploymentId = 101, EmployeeCode = "EX002", DisplayName = "Alex Example", CompanyName = "Demonstration Company", DateEngaged = new(2026, 2, 1), SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Operations", JobTitleName = "Supervisor", EmploymentTypeName = "Permanent" };
         public Task<IReadOnlyList<EmployeeListItem>> GetAsync(DateTime asOfDate, string? search = null, int offset = 0, int pageSize = 50, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<EmployeeListItem>>([]);
+            => Task.FromResult<IReadOnlyList<EmployeeListItem>>([Employee, new() { PersonId = 2, EmploymentId = 102, EmployeeCode = "EX001", DisplayName = "Jordan Sample", CompanyName = "Demonstration Company", DateEngaged = new(2026, 3, 1), SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Retail", JobTitleName = "Administrator", EmploymentTypeName = "Contract" }]);
         public Task<EmployeeOverview?> GetOverviewAsync(long employmentId, CancellationToken cancellationToken = default)
-            => Task.FromResult<EmployeeOverview?>(null);
+            => Task.FromResult<EmployeeOverview?>(employmentId != 101 ? null : new(Employee,
+                [Employee, new() { EmploymentId = 100, EmployeeCode = "EX001", DateEngaged = new(2020, 2, 1), StatusName = "Terminated" }],
+                [new() { SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Operations", CostCentreName = "Operations", JobTitleName = "Supervisor", EmploymentTypeName = "Permanent" }, new() { SnapshotDate = new(2026, 6, 30), StatusName = "Active", DepartmentName = "Operations", CostCentreName = "Operations", JobTitleName = "Administrator", EmploymentTypeName = "Permanent" }],
+                [new() { FieldName = "Job title", OldValue = "Administrator", NewValue = "Supervisor", ChangeType = "DetectedChange", IsConfirmed = false }]));
     }
 }

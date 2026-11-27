@@ -27,6 +27,29 @@ public sealed class EmployeeImportRepository(ISqlConnectionFactory connections) 
         await using var connection = await connections.OpenAsync(cancellationToken);
         return (await connection.QueryAsync<ImportIssue>(new CommandDefinition("hr.spEmployeeImport_Issues", new { ImportBatchId = batchId }, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken))).AsList();
     }
+    public async Task<EmployeeImportBatchSummary?> GetBatchAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<EmployeeImportBatchSummary>(new CommandDefinition(
+            "hr.spEmployeeImport_Get", new { ImportBatchId = batchId }, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
+    public async Task<IReadOnlyList<EmployeeImportPreviewRow>> GetRowsAsync(long batchId, int offset = 0, int pageSize = 50, string? status = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (status is not (null or "Valid" or "Invalid" or "Published")) throw new ArgumentException("Unknown row status.", nameof(status));
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return (await connection.QueryAsync<EmployeeImportPreviewRow>(new CommandDefinition(
+            "hr.spEmployeeImport_Rows", new { ImportBatchId = batchId, Offset = offset, PageSize = pageSize, Status = status },
+            commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken))).AsList();
+    }
+    public async Task<ImportDashboardSummary> GetDashboardAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return await connection.QuerySingleAsync<ImportDashboardSummary>(new CommandDefinition(
+            "hr.spEmployeeImport_Dashboard", commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
     public async Task PublishAsync(long batchId, CancellationToken cancellationToken = default)
     {
         await using var connection = await connections.OpenAsync(cancellationToken);
