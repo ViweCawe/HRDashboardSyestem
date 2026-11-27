@@ -10,3 +10,5 @@
 - Authorise HR pages by the existing policies. Never commit actual HR records, IDs, credentials or exports.
 - Build HrDashboard, run the tests and compile SQL after relevant changes. Database behaviour checks require an explicitly configured disposable database.
 - Update docs to distinguish implemented behaviour from planned work. Report checks actually run and any remaining validation limits.
+
+- Original SSDT projects need explicit file entries for Solution Explorer: add each new SQL file to DashboardDatabase/DashboardDatabase.sqlproj with its own Build Include and include its folder. Do not replace these entries with wildcards.

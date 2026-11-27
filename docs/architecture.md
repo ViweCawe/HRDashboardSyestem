@@ -38,3 +38,13 @@ Implement small end-to-end slices. Keep changes on feature branches and inspect 
 5. Implement leave-balance import after confirming units and the period/YTD/cycle meaning of Taken.
 6. Add department/employment-type filters and charts, keeping report resolution within the source data's actual granularity.
 7. Add the remaining profile/ER modules separately.
+
+## SQL project visibility in Visual Studio
+
+DashboardDatabase is an original-style SSDT project. Its project file lists each
+SQL script with an explicit Build Include and lists the physical folders. Keep
+those entries when adding tables or procedures so Solution Explorer displays them.
+After pulling a project-file update, reload DashboardDatabase or close and reopen
+HrDashboardApp.slnx from the same working folder. Tables, StoredProcedures and
+Schemas should appear in the project. Reloading the project does not require
+publishing or recreating the database.
