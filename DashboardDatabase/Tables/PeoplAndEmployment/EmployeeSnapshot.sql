@@ -1,0 +1,39 @@
+CREATE TABLE [hr].[EmployeeSnapshot]
+(
+    [SnapshotId] bigint IDENTITY(1,1) NOT NULL,
+    [EmploymentId] bigint NOT NULL,
+    [SnapshotDate] date NOT NULL,
+    [DepartmentId] int NULL,
+    [CostCentreId] int NULL,
+    [JobTitleId] int NULL,
+    [PositionId] int NULL,
+    [EmploymentTypeId] int NULL,
+    [EmployeeStatusId] int NOT NULL,
+    [CompanyRuleId] int NULL,
+    [RemunerationDefinitionId] int NULL,
+    [ManagerEmploymentId] bigint NULL,
+    [SourceReportsToCode] nvarchar(30) NULL,
+    [GenderCode] nvarchar(30) NULL,
+    [RacialGroupCode] nvarchar(30) NULL,
+    [Disability] nvarchar(100) NULL,
+    [TerminationDate] date NULL,
+    [TerminationReasonId] int NULL,
+    [SourceBatchId] bigint NOT NULL,
+    CONSTRAINT [FK_EmployeeSnapshot_TerminationReason] FOREIGN KEY ([TerminationReasonId]) REFERENCES [hr].[TerminationReason] ([TerminationReasonId]),
+    CONSTRAINT [PK_EmployeeSnapshot] PRIMARY KEY ([SnapshotId]),
+    CONSTRAINT [UQ_EmployeeSnapshot_0] UNIQUE ([EmploymentId], [SnapshotDate]),
+    CONSTRAINT [FK_EmployeeSnapshot_1] FOREIGN KEY ([EmploymentId]) REFERENCES [hr].[Employment] ([EmploymentId]),
+    CONSTRAINT [FK_EmployeeSnapshot_2] FOREIGN KEY ([DepartmentId]) REFERENCES [hr].[Department] ([DepartmentId]),
+    CONSTRAINT [FK_EmployeeSnapshot_3] FOREIGN KEY ([CostCentreId]) REFERENCES [hr].[CostCentre] ([CostCentreId]),
+    CONSTRAINT [FK_EmployeeSnapshot_4] FOREIGN KEY ([JobTitleId]) REFERENCES [hr].[JobTitle] ([JobTitleId]),
+    CONSTRAINT [FK_EmployeeSnapshot_5] FOREIGN KEY ([PositionId]) REFERENCES [hr].[Position] ([PositionId]),
+    CONSTRAINT [FK_EmployeeSnapshot_6] FOREIGN KEY ([EmploymentTypeId]) REFERENCES [hr].[EmploymentType] ([EmploymentTypeId]),
+    CONSTRAINT [FK_EmployeeSnapshot_7] FOREIGN KEY ([EmployeeStatusId]) REFERENCES [hr].[EmployeeStatus] ([EmployeeStatusId]),
+    CONSTRAINT [FK_EmployeeSnapshot_8] FOREIGN KEY ([CompanyRuleId]) REFERENCES [hr].[CompanyRule] ([CompanyRuleId]),
+    CONSTRAINT [FK_EmployeeSnapshot_9] FOREIGN KEY ([RemunerationDefinitionId]) REFERENCES [hr].[RemunerationDefinition] ([RemunerationDefinitionId]),
+    CONSTRAINT [FK_EmployeeSnapshot_10] FOREIGN KEY ([ManagerEmploymentId]) REFERENCES [hr].[Employment] ([EmploymentId]),
+    CONSTRAINT [FK_EmployeeSnapshot_11] FOREIGN KEY ([SourceBatchId]) REFERENCES [hr].[ImportBatch] ([ImportBatchId])
+);
+
+GO
+CREATE INDEX [IX_EmployeeSnapshot_SourceBatchId] ON [hr].[EmployeeSnapshot] ([SourceBatchId]);

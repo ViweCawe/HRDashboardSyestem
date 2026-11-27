@@ -1,3 +1,5 @@
+using ClassLibrary;
+using HrDashboard.Security;
 using HrDashboard.Components;
 using HrDashboard.Components.Account;
 using HrDashboard.Data;
@@ -12,6 +14,12 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddHrData(builder.Configuration.GetConnectionString("HrConnection"));
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(HrPolicies.Read, policy => policy.RequireAuthenticatedUser().RequireRole("HRAdmin", "HRReader"));
+    options.AddPolicy(HrPolicies.Import, policy => policy.RequireAuthenticatedUser().RequireRole("HRAdmin"));
+});
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
@@ -32,6 +40,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.SignIn.RequireConfirmedAccount = true;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
@@ -64,3 +73,6 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 
 app.Run();
+
+// Exposes the entry point to the HTTP integration-test host.
+public partial class Program { }

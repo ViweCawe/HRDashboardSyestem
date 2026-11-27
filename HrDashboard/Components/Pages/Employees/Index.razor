@@ -1,0 +1,51 @@
+@page "/employees"
+@attribute [Authorize(Policy = HrPolicies.Read)]
+@rendermode InteractiveServer
+@inject IEmployeeRepository Employees
+@inject ILogger<Index> Logger
+
+<PageTitle>Employees</PageTitle>
+<h1>Employees</h1>
+<p>View active and terminated engagements using the latest available snapshot on or before your selected date.</p>
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><label for="as-of" class="form-label">As of</label><InputDate id="as-of" class="form-control" @bind-Value="asOf" /></div>
+    <div class="col-md-5"><label for="employee-search" class="form-label">Name or employee code</label><input id="employee-search" class="form-control" maxlength="200" @bind="search" /></div>
+    <div class="col-md-2 align-self-end"><button class="btn btn-primary" disabled="@busy" @onclick="SearchAsync">Apply</button></div>
+</div>
+@if (error is not null) { <div class="alert alert-danger" role="alert">@error</div> }
+@if (busy) { <p role="status">Loading employees…</p> }
+else if (rows.Count == 0 && error is null) { <p>No employee records match this date and search.</p> }
+else if (rows.Count > 0)
+{
+    <div class="table-responsive"><table class="table table-striped">
+        <thead><tr><th>Employee code</th><th>Name</th><th>Status</th><th>Department</th><th>Job title</th><th>Employment type</th><th>Snapshot</th></tr></thead>
+        <tbody>@foreach (var row in rows) { <tr><td><a href="@($"employees/{row.EmploymentId}")">@row.EmployeeCode</a></td><td>@row.DisplayName</td><td>@row.StatusName</td><td>@row.DepartmentName</td><td>@row.JobTitleName</td><td>@(row.EmploymentTypeName ?? "Not supplied")</td><td>@row.SnapshotDate?.ToString("dd/MM/yyyy")</td></tr> }</tbody>
+    </table></div>
+}
+<div class="d-flex gap-3 align-items-center">
+    <button class="btn btn-outline-secondary" disabled="@(busy || offset == 0)" @onclick="PreviousAsync">Previous</button>
+    <span>Page @(offset / PageSize + 1)</span>
+    <button class="btn btn-outline-secondary" disabled="@(busy || rows.Count < PageSize)" @onclick="NextAsync">Next</button>
+</div>
+
+@code {
+    private const int PageSize = 50;
+    private DateTime asOf = DateTime.Today;
+    private string? search;
+    private int offset;
+    private bool busy;
+    private string? error;
+    private IReadOnlyList<EmployeeListItem> rows = [];
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task SearchAsync() { offset = 0; await LoadAsync(); }
+    private async Task PreviousAsync() { offset = Math.Max(0, offset - PageSize); await LoadAsync(); }
+    private async Task NextAsync() { offset += PageSize; await LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        busy = true; error = null;
+        try { rows = await Employees.GetAsync(asOf, search, offset, PageSize); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
+        { rows = []; Logger.LogError(ex, "Unable to load employee list"); error = "Employee data is unavailable. Check the HR database configuration and deployment."; }
+        finally { busy = false; }
+    }
+}

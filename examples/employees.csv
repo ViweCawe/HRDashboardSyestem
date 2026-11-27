@@ -1,0 +1,4 @@
+Employee Code,First Name,Last Name,Display Name,Date Engaged,Company,Employee Status,ID Number,Job Title,DEPARTMENT - Department,COST_CENTRE - Cost Centre,Termination Date,Termination Reason,Employment Type
+EX001,Alex,Example,Alex Example,01/02/2020,DEMO - Demonstration Company,T - Terminated,DEMO-PERSON-001,A001 - Administrator,OPS - Operations,OPS - Operations,31/12/2025,END - Contract ended,CONTRACT - Contract
+EX002,Alex,Example,Alex Example,01/02/2026,DEMO - Demonstration Company,A - Active,DEMO-PERSON-001,S001 - Supervisor,OPS - Operations,OPS - Operations,,,PERMANENT - Permanent
+EX001,Jordan,Sample,Jordan Sample,01/03/2026,DEMO - Demonstration Company,A - Active,DEMO-PERSON-002,A001 - Administrator,RET - Retail,RET - Retail,,,CONTRACT - Contract

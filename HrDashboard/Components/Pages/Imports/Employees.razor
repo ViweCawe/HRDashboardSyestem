@@ -1,0 +1,107 @@
+@page "/imports/employees"
+@attribute [Authorize(Policy = HrPolicies.Import)]
+@rendermode InteractiveServer
+@using System.Security.Claims
+@inject IEmployeeImportRepository Imports
+@inject EmployeeImportService ImportService
+@inject AuthenticationStateProvider Authentication
+@inject ILogger<Employees> Logger
+
+<PageTitle>Employee imports</PageTitle>
+<h1>Employee imports</h1>
+<p>Upload the Sage employee CSV. Review validation results, then publish the batch to make its snapshots available.</p>
+<p>Hours and leave import screens will follow. This screen accepts employee files only.</p>
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><label for="source-date" class="form-label">Export as-of date</label><InputDate id="source-date" class="form-control" @bind-Value="asOf" disabled="@busy" /></div>
+    <div class="col-md-3"><label for="delimiter" class="form-label">CSV delimiter</label><select id="delimiter" class="form-select" @bind="delimiter" disabled="@busy"><option value=",">Comma</option><option value=";">Semicolon</option></select></div>
+    <div class="col-md-6"><label for="employee-file" class="form-label">Employee CSV (maximum 5 MB)</label><InputFile id="employee-file" class="form-control" accept=".csv" OnChange="StageAsync" disabled="@busy" /></div>
+</div>
+@if (message is not null) { <div class="alert alert-success" role="status">@message</div> }
+@if (error is not null) { <div class="alert alert-danger" role="alert">@error</div> }
+@if (busy) { <p role="status">Processing import…</p> }
+@if (selected is not null)
+{
+    <h2>Batch @selected.ImportBatchId</h2>
+    <p>@selected.FileName · As of @selected.SourceAsOfDate.ToString("dd/MM/yyyy") · @selected.RowCount rows · @selected.Status</p>
+    @if (issues.Count == 0 && selected.Status == "Staged")
+    {
+        <p>File validation passed. Publication also checks existing identities and engagement history. No employee data changes until you publish.</p>
+        <button class="btn btn-primary mb-3" disabled="@busy" @onclick="PublishAsync">Publish validated batch</button>
+    }
+    @if (issues.Count > 0)
+    {
+        <p>Showing up to 200 issues. Correct these values in the source file and stage it again.</p>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Row</th><th>Column</th><th>Issue</th></tr></thead><tbody>
+        @foreach (var issue in issues) { <tr><td>@issue.SourceRowNumber</td><td>@issue.SourceField</td><td>@issue.Message</td></tr> }
+        </tbody></table></div>
+    }
+}
+<h2>Recent batches</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th>Batch</th><th>File</th><th>As of</th><th>Rows</th><th>Status</th></tr></thead><tbody>
+@foreach (var b in batches) { <tr><td><button class="btn btn-link p-0" disabled="@busy" @onclick="() => SelectAsync(b)">@b.ImportBatchId</button></td><td>@b.FileName</td><td>@b.SourceAsOfDate.ToString("dd/MM/yyyy")</td><td>@b.RowCount</td><td>@b.Status</td></tr> }
+</tbody></table></div>
+
+@code {
+    private const long MaxFileSize = EmployeeImportService.MaxFileSize;
+    private DateTime asOf = DateTime.Today;
+    private string delimiter = ",";
+    private bool busy;
+    private string? message, error;
+    private ImportBatch? selected;
+    private IReadOnlyList<ImportBatch> batches = [];
+    private IReadOnlyList<ImportIssue> issues = [];
+    protected override async Task OnInitializedAsync()
+    {
+        try { batches = await Imports.GetRecentAsync(); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+    }
+    private async Task StageAsync(InputFileChangeEventArgs args)
+    {
+        if (busy) return;
+        busy = true; message = error = null; selected = null; issues = [];
+        try
+        {
+            var file = args.File;
+            if (!Path.GetExtension(file.Name).Equals(".csv", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Select a CSV export.");
+            if (file.Size > MaxFileSize) throw new InvalidDataException("The CSV exceeds 5 MB.");
+            await using var stream = file.OpenReadStream(MaxFileSize);
+            var state = await Authentication.GetAuthenticationStateAsync();
+            var actor = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("An authenticated user is required.");
+            selected = await ImportService.StageAsync(stream, file.Name, asOf, actor, delimiter);
+            issues = await Imports.GetIssuesAsync(selected.ImportBatchId);
+            batches = await Imports.GetRecentAsync();
+            message = selected.Status == "Published" ? "This exact file and reporting date were already published. No duplicate records were created." : "Batch staged. Review its results before publication.";
+        }
+        catch (InvalidDataException ex) { error = ex.Message; }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException or IOException) { Failure(ex); }
+        finally { busy = false; }
+    }
+    private async Task SelectAsync(ImportBatch batch)
+    {
+        if (busy) return;
+        busy = true; message = error = null;
+        try { selected = batch; issues = await Imports.GetIssuesAsync(batch.ImportBatchId); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        finally { busy = false; }
+    }
+    private async Task PublishAsync()
+    {
+        if (busy || selected is null) return;
+        busy = true; message = error = null;
+        try
+        {
+            await Imports.PublishAsync(selected.ImportBatchId);
+            batches = await Imports.GetRecentAsync();
+            selected = batches.FirstOrDefault(b => b.ImportBatchId == selected.ImportBatchId);
+            message = "Employee import published successfully. Employee snapshots and history are available.";
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50001) { error = ex.Message; }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { Failure(ex); }
+        finally { busy = false; }
+    }
+    private void Failure(Exception ex)
+    {
+        Logger.LogError(ex, "Employee import operation failed");
+        error = "The import could not complete. Check the HR database configuration and deployment, then retry.";
+    }
+}
