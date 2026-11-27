@@ -63,6 +63,9 @@ records/import status, with no fabricated workforce metrics.
 
 ## Negative and history checks
 
+- Dates may use `dd/MM/yyyy`, `yyyy/MM/dd` or `yyyy-MM-dd`; `2026/07/01` is 1 July 2026.
+- Re-upload a previously rejected Review file after a parser update: it is
+  validated again in the same batch, retaining its raw source and earlier issue history.
 - Repeat the same file and source date: it returns the existing batch and cannot
   create duplicate records.
 - In a copied CSV, clear one ID with no passport alternative. Validate it: the row

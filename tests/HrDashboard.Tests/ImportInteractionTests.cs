@@ -30,12 +30,16 @@ public sealed class ImportInteractionTests : BunitContext
         Services.AddSingleton<AuthenticationStateProvider, TestAuthentication>();
     }
 
-    [Fact]
-    public void SelectingAndValidatingACsvOpensItsReviewPage()
+    [Theory]
+    [InlineData(",", "01/02/2026")]
+    [InlineData(";", "2026/07/01")]
+    public void SelectingAndValidatingACsvOpensItsReviewPage(string delimiter, string engagementDate)
     {
         var page = Render<UploadPage>();
         Assert.True(ValidateButton(page).HasAttribute("disabled"));
-        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(ValidCsv, "employees.csv"));
+        page.Find("#delimiter").Change(delimiter);
+        var csv = ValidCsv.Replace("01/02/2026", engagementDate).Replace(",", delimiter);
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "employees.csv"));
         Assert.False(ValidateButton(page).HasAttribute("disabled"));
         ValidateButton(page).Click();
         page.WaitForAssertion(() => Assert.EndsWith("imports/employees/41", Services.GetRequiredService<NavigationManager>().Uri));

@@ -46,8 +46,8 @@ public sealed class EmployeeCsvReader
             {
                 var v = Get(name);
                 if (v is null) return null;
-                if (DateTime.TryParseExact(v, ["dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var result)) return result.Date;
-                Issue(name, "InvalidDate", "Use dd/MM/yyyy or yyyy-MM-dd. Ambiguous dates are not guessed.");
+                if (DateTime.TryParseExact(v, ["dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "yyyy/MM/dd"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var result)) return result.Date;
+                Issue(name, "InvalidDate", "Use dd/MM/yyyy, yyyy/MM/dd or yyyy-MM-dd. Month/day/year dates are not guessed.");
                 return null;
             }
             var record = new EmployeeImportRecord

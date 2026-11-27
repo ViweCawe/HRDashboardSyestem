@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using ClassLibrary.DataAccess;
 using ClassLibrary.ImportAndStaging.Data;
 using ClassLibrary.ImportAndStaging.Services;
+using ClassLibrary.ImportAndStaging.Models;
 using ClassLibrary.PeoplAndEmployment.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
@@ -91,5 +93,53 @@ await Rejected(invalid.ImportBatchId, "Resolve the source validation errors", "V
 var dashboard = await imports.GetDashboardAsync();
 Check(dashboard.EmployeeRecords >= 3 && dashboard.PublishedImports >= 2, "Workspace totals reflect persisted records and imports");
 Check((await imports.GetBatchAsync(invalid.ImportBatchId)) is { InvalidRowCount: 1, IssueCount: > 0 }, "Invalid batch review reports blocked rows and issues");
+
+// Simulate the earlier parser rejecting yyyy/MM/dd, then revalidate the exact
+// same bytes after upgrading. No private export is used in these fixtures.
+EmployeeImportPreview LegacyDateResult(EmployeeImportPreview current)
+{
+    var source = current.Rows.Single();
+    var record = JsonSerializer.Deserialize<EmployeeImportRecord>(source.NormalizedDataJson)!;
+    record.DateEngaged = null;
+    return new([source with { NormalizedDataJson = JsonSerializer.Serialize(record), ValidationStatus = "Invalid" }],
+        [..current.Issues,
+            new() { SourceRowNumber = 2, SourceField = "Date Engaged", RuleCode = "InvalidDate", Message = "Legacy date format issue", Severity = "Error" },
+            new() { SourceRowNumber = 2, SourceField = "Date Engaged", RuleCode = "Required", Message = "Legacy duplicate required issue", Severity = "Error" }]);
+}
+var yearFirstCsv = header + $"\nDATE01,YearFirst,Example,2026/07/01,{company} - {companyName},A - Active,YEAR-ID-{tag},,,A001 - Administrator,OPS - Operations,CON - Contract";
+var currentDates = reader.Read(yearFirstCsv, firstDate);
+var dateHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(yearFirstCsv)));
+var legacy = await imports.StageAsync("year-first.csv", dateHash, firstDate, "database-checks", LegacyDateResult(currentDates));
+var sourceRowId = await sql.ExecuteScalarAsync<long>("SELECT StagingRowId FROM hr.EmployeeImportRow WHERE ImportBatchId=@id", new { id = legacy.ImportBatchId });
+Check(legacy.Status == "Review" && (await imports.GetIssuesAsync(legacy.ImportBatchId)).Count == 2, "Earlier date-format failure remains an unpublished review batch");
+var revalidated = await imports.StageAsync("year-first.csv", dateHash, firstDate, "database-checks", currentDates);
+Check(revalidated.ImportBatchId == legacy.ImportBatchId && revalidated.Status == "Staged" && (await imports.GetIssuesAsync(legacy.ImportBatchId)).Count == 0, "Same file revalidation clears obsolete date errors without creating another batch");
+Check(await sql.ExecuteScalarAsync<long>("SELECT StagingRowId FROM hr.EmployeeImportRow WHERE ImportBatchId=@id AND RawDataJson=@raw", new { id = legacy.ImportBatchId, raw = currentDates.Rows[0].RawDataJson }) == sourceRowId
+    && await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.ImportIssue WHERE ImportBatchId=@id AND ResolvedOn IS NOT NULL", new { id = legacy.ImportBatchId }) == 2,
+    "Revalidation preserves the original source row and earlier issue history");
+await imports.PublishAsync(revalidated.ImportBatchId);
+await imports.StageAsync("year-first.csv", dateHash, firstDate, "database-checks", LegacyDateResult(currentDates));
+Check((await imports.GetBatchAsync(revalidated.ImportBatchId)) is { Status: "Published", PublishedRowCount: 1, IssueCount: 0 }, "Revalidation never changes published rows even if another parser supplies different results");
+
+var partialCsv = yearFirstCsv.Replace("DATE01", "DATE02").Replace("YEAR-ID-" + tag, "");
+var partialDates = reader.Read(partialCsv, firstDate);
+var partialHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(partialCsv)));
+var partial = await imports.StageAsync("remaining-issue.csv", partialHash, firstDate, "database-checks", LegacyDateResult(partialDates));
+var revisedPartial = await imports.StageAsync("remaining-issue.csv", partialHash, firstDate, "database-checks", partialDates);
+var remaining = await imports.GetIssuesAsync(partial.ImportBatchId);
+Check(revisedPartial.Status == "Review" && remaining.Count == 1 && remaining[0].RuleCode == "MissingIdentity", "Revalidation removes obsolete date errors while preserving other publication blockers");
+var issueCount = await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.ImportIssue WHERE ImportBatchId=@id", new { id = partial.ImportBatchId });
+await imports.StageAsync("remaining-issue.csv", partialHash, firstDate, "database-checks", partialDates);
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.ImportIssue WHERE ImportBatchId=@id", new { id = partial.ImportBatchId }) == issueCount, "Identical review results do not duplicate validation history");
+try
+{
+    var tampered = partialDates.Rows[0] with { RawDataJson = partialDates.Rows[0].RawDataJson.Replace("YearFirst", "Changed") };
+    await imports.StageAsync("remaining-issue.csv", partialHash, firstDate, "database-checks", new([tampered], partialDates.Issues));
+    throw new InvalidOperationException("A revalidation changed the original source rows.");
+}
+catch (SqlException ex) when (ex.Number == 50001 && ex.Message.Contains("retain the original unpublished source rows", StringComparison.Ordinal))
+{
+    Check((await imports.GetIssuesAsync(partial.ImportBatchId)).Count == 1, "Changed raw rows cannot replace a review batch under the same file hash");
+}
 Console.WriteLine("Database behaviour checks completed. Drop the disposable database after review.");
 return 0;

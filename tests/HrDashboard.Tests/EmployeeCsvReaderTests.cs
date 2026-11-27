@@ -19,6 +19,33 @@ public sealed class EmployeeCsvReaderTests
         Assert.Equal(new DateTime(2020, 2, 1), Data(preview).DateEngaged);
         Assert.Equal("001", Data(preview).CompanyCode);
     }
+    [Fact] public void ReadsYearFirstSlashDateAsJulyFirstWithoutChangingTheSourceValue()
+    {
+        var preview = Read(ValidRow.Replace("01/02/2020", "2026/07/01"));
+        Assert.Empty(preview.Issues);
+        Assert.Equal(new DateTime(2026, 7, 1), Data(preview).DateEngaged);
+        Assert.Contains("2026/07/01", preview.Rows[0].RawDataJson);
+    }
+    [Theory]
+    [InlineData("Termination Date", "TerminationDate", "2026/07/01")]
+    [InlineData("Date of Birth", "DateOfBirth", "1990/07/01")]
+    [InlineData("Transfer Date", "TransferDate", "2026/07/01")]
+    [InlineData("Transfare Date", "TransferDate", "2026/07/01")]
+    public void OptionalDateFieldsAlsoAcceptYearFirstSlashDates(string header, string property, string value)
+    {
+        var preview = reader.Read(Header + "," + header + "\n" + ValidRow.Replace("A - Active", "T - Terminated") + "," + value, AsOf);
+        Assert.Empty(preview.Issues);
+        using var json = JsonDocument.Parse(preview.Rows[0].NormalizedDataJson);
+        Assert.Equal(value.Replace('/', '-'), json.RootElement.GetProperty(property).GetDateTime().ToString("yyyy-MM-dd"));
+    }
+    [Theory]
+    [InlineData("2026/31/07")]
+    [InlineData("2026/02/30")]
+    public void InvalidYearFirstDatesStillRequireReview(string value)
+    {
+        var issue = Assert.Single(Read(ValidRow.Replace("01/02/2020", value)).Issues);
+        Assert.Equal("InvalidDate", issue.RuleCode);
+    }
     [Fact] public void DoesNotRequireDateOfBirthOrInferEmploymentType()
     {
         var preview = Read(ValidRow);

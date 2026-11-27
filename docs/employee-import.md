@@ -19,10 +19,17 @@ The first row must contain column headings. Quoted delimiters and additional sou
 | Gender, Racial Group, Disability | Snapshot attributes, when supplied. |
 | Transfer Date or Transfare Date | Optional effective date for a department/cost-centre transfer. |
 
-Code/label cells use `CODE - Description`; a standalone code is accepted as both code and provisional label. Dates accept explicit day/month/year (`dd/MM/yyyy` or `d/M/yyyy`) or ISO `yyyy-MM-dd`. US month/day dates are not guessed. National IDs and employee codes are text, preserving leading zeroes.
+Code/label cells use `CODE - Description`; a standalone code is accepted as both code and provisional label. Dates accept explicit day/month/year (`dd/MM/yyyy` or `d/M/yyyy`) or year-first `yyyy/MM/dd` and ISO `yyyy-MM-dd`. For example, `2026/07/01` means 1 July 2026. US month/day dates are not guessed. National IDs and employee codes are text, preserving leading zeroes.
 
 The export can contain active and terminated engagements together. Different leave codes or hours categories belong to the later, separate import contracts; do not upload those files on the employee screen.
 
 `examples/employees.csv` uses invented names and non-production test identity values. It demonstrates one person returning under a new employee code, and an old code subsequently allocated to someone else. Replace only with approved synthetic identifiers when testing more specific national-ID validation later.
 
 Known placeholder IDs (for example UNKNOWN or N/A) require review. The first slice does not validate national-ID checksums or obtain DOB from an ID; identity corrections and country-specific validation need an agreed HR contract. The review screen displays the first 200 issues while all issues remain stored and block publication.
+
+Re-uploading the same file and as-of date returns the same batch. An unpublished
+Review batch is revalidated when the parser produces changed results: the original
+source rows and staging IDs are retained, earlier issues are kept with a resolution
+timestamp, and the review page shows current issues only. Published and already
+validated Staged batches are returned unchanged. This does not replace published
+snapshots or provide a same-date source correction workflow.
