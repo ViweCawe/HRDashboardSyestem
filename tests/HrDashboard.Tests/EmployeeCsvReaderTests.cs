@@ -133,6 +133,39 @@ public sealed class EmployeeCsvReaderTests
         var preview = reader.Read(Header + ",Passport No,Passport Country Code\n" + ValidRow.Replace("TEST-ID-001", "N/A") + ",PASSPORT-001,N/A", AsOf);
         Assert.Equal("MissingPassportCountry", Assert.Single(preview.Issues).RuleCode);
     }
+    [Theory]
+    [InlineData("ESS_APPR - ESS Approvers")]
+    [InlineData("4 - ESS_APPR - ESS Approvers")]
+    [InlineData("ess_appr - ESS Approvers")]
+    public void OnlyTheConfirmedEssApproverRuleCanOmitAnIdentityDocument(string rule)
+    {
+        var csv = Header + ",Company Rule,Passport No\n" + ValidRow.Replace("TEST-ID-001", "N/A") + "," + rule + ",N/A";
+        Assert.Empty(reader.Read(csv, AsOf).Issues);
+    }
+    [Theory]
+    [InlineData("1 - MP - Monthly Permanent")]
+    [InlineData("4 - OTHER - Other consultants")]
+    [InlineData("ESS_APPR_OTHER - Other")]
+    public void AConsultantLabelOrNumericRuleAloneDoesNotGrantTheExemption(string rule)
+    {
+        var csv = Header + ",Company Rule\n" + ValidRow.Replace("TEST-ID-001", "N/A") + "," + rule;
+        Assert.Equal("MissingIdentity", Assert.Single(reader.Read(csv, AsOf).Issues).RuleCode);
+    }
+    [Fact] public void TheExemptionDoesNotInventACountryForAProvidedPassport()
+    {
+        var csv = Header + ",Company Rule,Passport No\n" + ValidRow.Replace("TEST-ID-001", "N/A") + ",ESS_APPR - ESS Approvers,PASSPORT-001";
+        Assert.Equal("MissingPassportCountry", Assert.Single(reader.Read(csv, AsOf).Issues).RuleCode);
+    }
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void MonthlyPermanentEmployeesCanHaveAnEmptyEndDate(string endDate)
+    {
+        var preview = reader.Read(Header + ",Company Rule,Termination Date\n" + ValidRow + ",1 - MP - Monthly Permanent," + endDate, AsOf);
+        Assert.Empty(preview.Issues);
+        Assert.Null(Data(preview).TerminationDate);
+        Assert.Null(Data(preview).PlannedEndDate);
+    }
     [Fact] public void DoesNotGuessUsDateFormat()
     {
         Assert.Contains(Read(ValidRow.Replace("01/02/2020", "07/31/2020")).Issues, i => i.RuleCode == "InvalidDate");

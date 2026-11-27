@@ -63,6 +63,9 @@ records/import status, with no fabricated workforce metrics.
 
 ## Negative and history checks
 
+- ESS_APPR approvers may omit identity documents. Upload the same engagement at
+  another source date to confirm that its internal PersonId remains linked.
+  A monthly permanent employee with an empty termination date should validate.
 - An active Sage record with a source termination date should show a planned end
   date, preserve Active status, and have no actual termination until Sage supplies
   a terminated record. N/A in an unused ID/passport field should not raise an issue.

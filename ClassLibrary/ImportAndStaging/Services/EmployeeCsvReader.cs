@@ -81,7 +81,7 @@ public sealed class EmployeeCsvReader
             foreach (var (field, value) in new[] { ("Employee Code", record.EmployeeCode), ("First Name", record.FirstName), ("Last Name", record.LastName), ("Company", record.CompanyCode), ("Employee Status", record.EmployeeStatusCode) })
                 if (value is null) Issue(field, "Required", "A required value is missing.");
             if (Get("Date Engaged") is null) Issue("Date Engaged", "Required", "An engagement date is required.");
-            if (record.NationalId is null && record.PassportNumber is null)
+            if (record.NationalId is null && record.PassportNumber is null && !HasIdentityExemption(record))
                 Issue("ID Number", "MissingIdentity", "Supply an ID number or a passport and country; names alone cannot match a person.");
             if (record.NationalId is not null && new[] { "UNKNOWN", "N/A", "NA", "NONE", "NULL", "NOT PROVIDED", "0", "0000000000000" }.Contains(record.NationalId, StringComparer.OrdinalIgnoreCase))
                 Issue("ID Number", "InvalidIdentity", "A placeholder cannot identify a person; provide a valid source identifier.");
@@ -106,6 +106,10 @@ public sealed class EmployeeCsvReader
         if (rows.Count == 0) throw new InvalidDataException("The CSV contains no employee rows.");
         return new(rows, issues);
     }
+
+    private static bool HasIdentityExemption(EmployeeImportRecord record)
+        => record.CompanyRuleCode?.Equals("ESS_APPR", StringComparison.OrdinalIgnoreCase) == true
+            || (record.CompanyRuleCode == "4" && Split(record.CompanyRuleName).Code?.Equals("ESS_APPR", StringComparison.OrdinalIgnoreCase) == true);
 
     private static (string? Code, string? Name) Split(string? value)
     {

@@ -54,6 +54,7 @@ BEGIN
         DECLARE @DateEngaged date;
         DECLARE @TerminationDate date;
         DECLARE @PlannedEndDate date;
+        DECLARE @IdentityExempt bit;
         DECLARE @DateOfBirth date;
         DECLARE @TransferDate date;
         DECLARE @CompanyId int;
@@ -147,7 +148,10 @@ BEGIN
                 SET @PlannedEndDate = COALESCE(@PlannedEndDate, @TerminationDate);
                 SET @TerminationDate = NULL;
             END;
+            SET @IdentityExempt = CASE WHEN UPPER(@CompanyRuleCode) = 'ESS_APPR'
+                OR (@CompanyRuleCode = '4' AND UPPER(LTRIM(RTRIM(LEFT(@CompanyRuleName, CHARINDEX(' - ', @CompanyRuleName + ' - ') - 1)))) = 'ESS_APPR') THEN 1 ELSE 0 END;
             IF @NationalId IS NULL AND (@PassportNumber IS NULL OR @PassportCountryCode IS NULL)
+                AND NOT (@IdentityExempt = 1 AND @PassportNumber IS NULL)
                 THROW 50001, 'A row has no reliable person identifier.', 1;
             IF @EmployeeCode IS NULL OR @CompanyCode IS NULL OR @EmployeeStatusCode IS NULL OR @DateEngaged IS NULL OR @FirstName IS NULL OR @LastName IS NULL
                 THROW 50001, 'A row is missing required employee fields.', 1;
@@ -159,6 +163,13 @@ BEGIN
             SELECT @PersonId = PersonId FROM hr.Person WITH (UPDLOCK, HOLDLOCK)
             WHERE (@NationalId IS NOT NULL AND NationalId = @NationalId)
                OR (@PassportNumber IS NOT NULL AND PassportNumber = @PassportNumber AND PassportCountryCode = @PassportCountryCode);
+            -- HR-approved ESS approvers may have no identity document. Reuse only
+            -- their exact company/code/engagement binding; never match on a name
+            -- or carry an undocumented identity across a new/recycled engagement.
+            IF @PersonId IS NULL AND @IdentityExempt = 1
+                SELECT @PersonId = e.PersonId FROM hr.Employment e WITH (UPDLOCK, HOLDLOCK)
+                JOIN hr.Company c ON c.CompanyId = e.CompanyId
+                WHERE c.Code = @CompanyCode AND e.EmployeeCode = @EmployeeCode AND e.DateEngaged = @DateEngaged;
             IF @PersonId IS NULL
             BEGIN
                 INSERT hr.Person (NationalId, PassportNumber, PassportCountryCode, FirstName, LastName, DisplayName, DateOfBirth)

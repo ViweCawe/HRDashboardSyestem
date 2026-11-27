@@ -175,5 +175,51 @@ Check(ended is { History.Count: 3 } && ended.Employee.StatusName == "Terminated"
     && ended.Employee.TerminationDate == new DateTime(2026, 11, 30), "A subsequent Sage termination records the actual end and preserves earlier planned history");
 Check((await employees.GetAsync(firstDate, "Plan" + tag)).Any(e => e.EmploymentId == planEmploymentId && e.StatusName == "Active"
     && e.PlannedEndDate == new DateTime(2026, 9, 30) && e.TerminationDate is null), "Earlier as-of reporting keeps the original active planned-end snapshot after termination");
+// ESS_APPR approvers are the only HR-approved missing-document exception.
+var approverHeader = header + ",Company Rule";
+var approverCells = new[] { "CNS01", "Approver" + tag, "Example", "2026/07/01", company + " - " + companyName,
+    "A - Active", "N/A", "", "", "A001 - Administrator", "OPS - Operations", "", "4 - ESS_APPR - ESS Approvers" };
+var approverCsv = approverHeader + "\n" + string.Join(',', approverCells);
+var approverPreview = reader.Read(approverCsv, firstDate);
+var approverHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(approverCsv)));
+var oldApproverPreview = new EmployeeImportPreview([approverPreview.Rows[0] with { ValidationStatus = "Invalid" }],
+    [new() { SourceRowNumber = 2, SourceField = "ID Number", RuleCode = "MissingIdentity", Message = "Earlier missing identity rule", Severity = "Error" }]);
+var oldApprover = await imports.StageAsync("approver.csv", approverHash, firstDate, "database-checks", oldApproverPreview);
+var approver = await Stage(approverCsv, firstDate);
+Check(approver.ImportBatchId == oldApprover.ImportBatchId && approver.Status == "Staged", "An existing ESS approver review batch revalidates under the approved identity exception");
+await imports.PublishAsync(approver.ImportBatchId);
+var approverPerson = await sql.ExecuteScalarAsync<long>("SELECT e.PersonId FROM hr.Employment e JOIN hr.Company c ON c.CompanyId=e.CompanyId WHERE c.Code=@company AND e.EmployeeCode='CNS01'", new { company });
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.Person WHERE PersonId=@approverPerson AND NationalId IS NULL AND PassportNumber IS NULL", new { approverPerson }) == 1,
+    "A document-free ESS approver receives an internal PersonId without an invented identity");
+var approverLater = await Stage(approverCsv, firstDate.AddMonths(1));
+await imports.PublishAsync(approverLater.ImportBatchId);
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.Employment e JOIN hr.Company c ON c.CompanyId=e.CompanyId WHERE c.Code=@company AND e.EmployeeCode='CNS01' AND e.PersonId=@approverPerson", new { company, approverPerson }) == 1,
+    "Repeated document-free approver exports reuse the same person and engagement");
+var anotherApprover = await Stage(approverCsv.Replace("CNS01", "CNS02"), firstDate.AddMonths(1));
+await imports.PublishAsync(anotherApprover.ImportBatchId);
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(DISTINCT e.PersonId) FROM hr.Employment e JOIN hr.Company c ON c.CompanyId=e.CompanyId WHERE c.Code=@company AND e.EmployeeCode IN ('CNS01','CNS02')", new { company }) == 2,
+    "Identical names on different undocumented approver engagements do not merge people");
+var ordinaryMissingCsv = approverCsv.Replace("CNS01", "CNSBAD").Replace("4 - ESS_APPR - ESS Approvers", "1 - MP - Monthly Permanent");
+var ordinaryMissing = reader.Read(ordinaryMissingCsv, firstDate);
+var forgedValid = new EmployeeImportPreview([ordinaryMissing.Rows[0] with { ValidationStatus = "Valid" }], []);
+var ordinaryBatch = await imports.StageAsync("ordinary-no-id.csv", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ordinaryMissingCsv))), firstDate, "database-checks", forgedValid);
+await Rejected(ordinaryBatch.ImportBatchId, "no reliable person identifier", "SQL publication enforces the missing-ID exception even if client validation is bypassed");
+var incompletePassport = JsonSerializer.Deserialize<EmployeeImportRecord>(approverPreview.Rows[0].NormalizedDataJson)!;
+incompletePassport.EmployeeCode = "CNSPASS"; incompletePassport.PassportNumber = "NO-COUNTRY-" + tag;
+var passportPayload = new EmployeeImportPreview([approverPreview.Rows[0] with { NormalizedDataJson = JsonSerializer.Serialize(incompletePassport) }], []);
+var passportBatch = await imports.StageAsync("approver-incomplete-passport.csv", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("incomplete-passport-" + tag))), firstDate, "database-checks", passportPayload);
+await Rejected(passportBatch.ImportBatchId, "no reliable person identifier", "The approver exception does not publish a provided passport with no issuing country");
+var verifiedApprover = await Stage(approverCsv.Replace(",N/A,", ",VERIFIED-" + tag + ","), new DateTime(2026, 9, 15));
+await imports.PublishAsync(verifiedApprover.ImportBatchId);
+Check(await sql.ExecuteScalarAsync<string>("SELECT NationalId FROM hr.Person WHERE PersonId=@approverPerson", new { approverPerson }) == "VERIFIED-" + tag,
+    "A later verified identifier enriches the same ESS approver person for that engagement");
+var endedApproverCells = (string[])approverCells.Clone(); endedApproverCells[5] = "T - Terminated"; endedApproverCells[7] = "2026/09/30";
+var endedApprover = await Stage(approverHeader + "\n" + string.Join(',', endedApproverCells), new DateTime(2026, 9, 30));
+await imports.PublishAsync(endedApprover.ImportBatchId);
+var recycledApproverCells = (string[])approverCells.Clone(); recycledApproverCells[3] = "2026/10/01";
+var recycledApprover = await Stage(approverHeader + "\n" + string.Join(',', recycledApproverCells), new DateTime(2026, 10, 31));
+await imports.PublishAsync(recycledApprover.ImportBatchId);
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(DISTINCT e.PersonId) FROM hr.Employment e JOIN hr.Company c ON c.CompanyId=e.CompanyId WHERE c.Code=@company AND e.EmployeeCode='CNS01'", new { company }) == 2,
+    "A recycled undocumented approver code gets a separate PersonId for its new engagement");
 Console.WriteLine("Database behaviour checks completed. Drop the disposable database after review.");
 return 0;

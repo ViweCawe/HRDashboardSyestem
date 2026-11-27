@@ -7,7 +7,7 @@ The first row must contain column headings. Quoted delimiters and additional sou
 | Column | Handling |
 | --- | --- |
 | Employee Code, First Name, Last Name, Date Engaged, Company, Employee Status | Required headings and required values. |
-| ID Number | Person match identifier. Required unless a passport plus issuing country is supplied. N/A means this field is unused. |
+| ID Number | Person match identifier. Required unless a passport plus issuing country is supplied or the approved ESS approver exception applies. N/A means this field is unused. |
 | Passport No, Passport Country Code | Optional alternative identity; two-letter country required whenever a passport is supplied. N/A in the unused passport/country field is normalized to null; country may need to be added for real passport-only records. |
 | Display Name, Date of Birth, Entity Code | Optional; missing DOB/type/entity values are not invented. |
 | Job Title, Primary Position | Parsed as source code and label. |
@@ -42,6 +42,28 @@ are stored separately on engagements and snapshots and shown in employee history
 Changes to either date remain detected changes, with the original source preserved.
 
 Only literal N/A (case-insensitive, ignoring surrounding spaces) is treated as an
-unused identity value. If both identity fields are blank/N/A, publication remains
-blocked. A real passport still needs a two-letter issuing country. Other placeholder
+unused identity value. Outside the approved ESS approver exception, if both
+identity fields are blank/N/A, publication remains blocked. A real passport still needs a two-letter issuing country. Other placeholder
 IDs continue to require review. Original N/A text is retained in source JSON.
+
+HR-approved identity exception: Company Rule `ESS_APPR - ESS Approvers` or
+`4 - ESS_APPR - ESS Approvers` may omit ID/passport documents. Numeric rule 4
+alone, other consultant labels and other rule codes do not grant this exception.
+Actual supplied passports still need their issuing country; invalid placeholder
+identities still need review. Ordinary missing-document rules remain enforced
+by both the reader and SQL publication.
+
+An undocumented approver receives an internal PersonId. Later exports reuse only
+the exact company/employee-code/engagement-date binding, preserving that PersonId.
+Names and an unverified Entity Code are not used to merge people across engagements.
+A new engagement or recycled code receives a separate PersonId unless a real
+identity establishes a match. Automatically linking document-free reappointments
+requires a separately verified stable Sage identifier or an HR identity review.
+A subsequently supplied identity can enrich the same ESS approver engagement,
+while conflicting matches still require review. This exception does not infer
+employment type or change the person/engagement primary keys.
+
+Monthly permanent employees may leave the source termination date blank; both
+normalized end dates are null. A nonblank malformed value is still a validation
+issue, so unexpected source placeholders or formats need confirmation rather than
+being silently discarded.
