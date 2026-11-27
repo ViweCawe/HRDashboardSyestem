@@ -17,6 +17,7 @@ CREATE TABLE [hr].[EmployeeSnapshot]
     [RacialGroupCode] nvarchar(30) NULL,
     [Disability] nvarchar(100) NULL,
     [TerminationDate] date NULL,
+    [PlannedEndDate] date NULL,
     [TerminationReasonId] int NULL,
     [SourceBatchId] bigint NOT NULL,
     CONSTRAINT [FK_EmployeeSnapshot_TerminationReason] FOREIGN KEY ([TerminationReasonId]) REFERENCES [hr].[TerminationReason] ([TerminationReasonId]),

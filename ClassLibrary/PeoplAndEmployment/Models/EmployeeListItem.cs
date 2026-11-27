@@ -9,6 +9,7 @@ public sealed class EmployeeListItem
     public string CompanyName { get; set; } = string.Empty;
     public DateTime DateEngaged { get; set; }
     public DateTime? TerminationDate { get; set; }
+    public DateTime? PlannedEndDate { get; set; }
     public DateTime? SnapshotDate { get; set; }
     public string? StatusName { get; set; }
     public string? DepartmentName { get; set; }

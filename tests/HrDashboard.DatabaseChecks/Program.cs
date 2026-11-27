@@ -141,5 +141,39 @@ catch (SqlException ex) when (ex.Number == 50001 && ex.Message.Contains("retain 
 {
     Check((await imports.GetIssuesAsync(partial.ImportBatchId)).Count == 1, "Changed raw rows cannot replace a review batch under the same file hash");
 }
+// HR supplies planned contract ends while status remains Active. Unused identity
+// fields contain N/A; these values must never be stored as person match keys.
+var planHeader = header + ",Passport No,Passport Country Code";
+var planId = "PLAN-ID-" + tag;
+var planPassport = "PLAN-PASS-" + tag;
+var planRow = $"CON01,Plan{tag},Example,2026/07/01,{company} - {companyName},A - Active,{planId},2026/09/30,END - Contract end,A001 - Administrator,OPS - Operations,CON - Contract,N/A,N/A";
+var passportRow = $"PASS01,Plan{tag},Passport,2026/07/01,{company} - {companyName},A - Active,N/A,2026/09/30,END - Contract end,A001 - Administrator,OPS - Operations,CON - Contract,{planPassport},ZA";
+var planned = await Stage(planHeader + "\n" + planRow + "\n" + passportRow, firstDate);
+await imports.PublishAsync(planned.ImportBatchId);
+Check((await imports.GetBatchAsync(planned.ImportBatchId))?.PublishedRowCount == 2, "Active employees with planned end dates and unused N/A identities publish successfully");
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.Person WHERE NationalId=@planId AND PassportNumber IS NULL AND PassportCountryCode IS NULL", new { planId }) == 1,
+    "An ID-based person never stores unused passport N/A as a match key");
+Check(await sql.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM hr.Person WHERE PassportNumber=@planPassport AND PassportCountryCode='ZA' AND NationalId IS NULL", new { planPassport }) == 1,
+    "A passport-based person never stores unused ID N/A as a match key");
+var planRecords = (await employees.GetAsync(firstDate, "Plan" + tag)).Where(e => e.CompanyName == companyName).ToArray();
+Check(planRecords.Length == 2 && planRecords.All(e => e.StatusName == "Active" && e.PlannedEndDate == new DateTime(2026, 9, 30) && e.TerminationDate is null),
+    "As-of records retain Active status with planned dates and no actual termination");
+var earlyRecycle = header + $"\nCON01,Another,Holder,2026/10/01,{company} - {companyName},A - Active,EARLY-{tag},,,A001 - Administrator,OPS - Operations,CON - Contract";
+var early = await Stage(earlyRecycle, new DateTime(2026, 10, 31));
+await Rejected(early.ImportBatchId, "overlaps an existing engagement", "A planned end does not release an active employee code for recycling");
+var renewal = await Stage(planHeader + "\n" + planRow.Replace("2026/09/30", "2026/11/30"), firstDate.AddMonths(1));
+await imports.PublishAsync(renewal.ImportBatchId);
+var planEmploymentId = planRecords.Single(e => e.EmployeeCode == "CON01").EmploymentId;
+var renewed = await employees.GetOverviewAsync(planEmploymentId);
+Check(renewed is { History.Count: 2 } && renewed.Employee.PlannedEndDate == new DateTime(2026, 11, 30)
+    && renewed.Changes.Any(c => c.FieldName == "Planned end date" && c.OldValue == "2026-09-30" && c.NewValue == "2026-11-30"),
+    "An extended planned end has its own readable change and retains both snapshots");
+var terminatedPlan = await Stage(planHeader + "\n" + planRow.Replace("A - Active", "T - Terminated").Replace("2026/09/30", "2026/11/30"), new DateTime(2026, 11, 30));
+await imports.PublishAsync(terminatedPlan.ImportBatchId);
+var ended = await employees.GetOverviewAsync(planEmploymentId);
+Check(ended is { History.Count: 3 } && ended.Employee.StatusName == "Terminated" && ended.Employee.PlannedEndDate is null
+    && ended.Employee.TerminationDate == new DateTime(2026, 11, 30), "A subsequent Sage termination records the actual end and preserves earlier planned history");
+Check((await employees.GetAsync(firstDate, "Plan" + tag)).Any(e => e.EmploymentId == planEmploymentId && e.StatusName == "Active"
+    && e.PlannedEndDate == new DateTime(2026, 9, 30) && e.TerminationDate is null), "Earlier as-of reporting keeps the original active planned-end snapshot after termination");
 Console.WriteLine("Database behaviour checks completed. Drop the disposable database after review.");
 return 0;

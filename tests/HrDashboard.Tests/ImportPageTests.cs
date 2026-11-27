@@ -63,6 +63,14 @@ public sealed class ImportPageTests
         Assert.Contains("DEMO-PERSON-001", csv);
         Assert.Contains("Alex,Example", csv);
     }
+    [Fact] public async Task EmployeeOverviewSeparatesPlannedEndFromActualTermination()
+    {
+        var html = await Get("/employees/101", "HRReader");
+        Assert.Contains("Planned end date", html);
+        Assert.Contains("31 Dec 2026", html);
+        Assert.Contains("Actual termination<strong>Not recorded</strong>", html);
+        Assert.Contains("Active", html);
+    }
     private static async Task<string> Get(string path, string? role)
     {
         await using var factory = new HrAccessTests.HrTestApplication();

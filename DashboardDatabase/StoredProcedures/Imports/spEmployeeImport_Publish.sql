@@ -53,6 +53,7 @@ BEGIN
         DECLARE @TerminationReasonName nvarchar(200);
         DECLARE @DateEngaged date;
         DECLARE @TerminationDate date;
+        DECLARE @PlannedEndDate date;
         DECLARE @DateOfBirth date;
         DECLARE @TransferDate date;
         DECLARE @CompanyId int;
@@ -103,7 +104,7 @@ BEGIN
                 @RemunerationDefinitionName = [RemunerationDefinitionName],
                 @TerminationReasonCode = [TerminationReasonCode],
                 @TerminationReasonName = [TerminationReasonName],
-                @DateEngaged = [DateEngaged], @TerminationDate = [TerminationDate], @DateOfBirth = [DateOfBirth], @TransferDate = [TransferDate]
+                @DateEngaged = [DateEngaged], @TerminationDate = [TerminationDate], @PlannedEndDate = [PlannedEndDate], @DateOfBirth = [DateOfBirth], @TransferDate = [TransferDate]
             FROM OPENJSON(@Json) WITH ([EmployeeCode] nvarchar(30),
                 [NationalId] nvarchar(30),
                 [PassportNumber] nvarchar(50),
@@ -138,8 +139,14 @@ BEGIN
                 [TerminationReasonName] nvarchar(200),
                 [DateEngaged] date,
                 [TerminationDate] date,
+                [PlannedEndDate] date,
                 [DateOfBirth] date,
                 [TransferDate] date);
+            IF @EmployeeStatusCode = 'A' OR @EmployeeStatusName = 'Active'
+            BEGIN
+                SET @PlannedEndDate = COALESCE(@PlannedEndDate, @TerminationDate);
+                SET @TerminationDate = NULL;
+            END;
             IF @NationalId IS NULL AND (@PassportNumber IS NULL OR @PassportCountryCode IS NULL)
                 THROW 50001, 'A row has no reliable person identifier.', 1;
             IF @EmployeeCode IS NULL OR @CompanyCode IS NULL OR @EmployeeStatusCode IS NULL OR @DateEngaged IS NULL OR @FirstName IS NULL OR @LastName IS NULL
@@ -300,8 +307,8 @@ BEGIN
                     THROW 50001, 'An existing employee code has a different engagement date; do not create a duplicate engagement.', 1;
                 IF EXISTS (SELECT 1 FROM hr.Employment WHERE CompanyId = @CompanyId AND EmployeeCode = @EmployeeCode AND (TerminationDate IS NULL OR TerminationDate >= @DateEngaged))
                     THROW 50001, 'A recycled employee code overlaps an existing engagement; HR must review it.', 1;
-                INSERT hr.Employment (PersonId, CompanyId, EmployeeCode, DateEngaged, TerminationDate, TerminationReasonId, SourceEntityCode, CreatedBatchId)
-                VALUES (@PersonId, @CompanyId, @EmployeeCode, @DateEngaged, @TerminationDate, @TerminationReasonId, @SourceEntityCode, @ImportBatchId);
+                INSERT hr.Employment (PersonId, CompanyId, EmployeeCode, DateEngaged, TerminationDate, PlannedEndDate, TerminationReasonId, SourceEntityCode, CreatedBatchId)
+                VALUES (@PersonId, @CompanyId, @EmployeeCode, @DateEngaged, @TerminationDate, @PlannedEndDate, @TerminationReasonId, @SourceEntityCode, @ImportBatchId);
                 SET @EmploymentId = SCOPE_IDENTITY();
             END;
             IF EXISTS (SELECT 1 FROM hr.EmployeeSnapshot WHERE EmploymentId = @EmploymentId AND SnapshotDate > @AsOfDate)
@@ -309,13 +316,13 @@ BEGIN
             -- A new file cannot silently replace an already published snapshot for the same date.
             IF EXISTS (SELECT 1 FROM hr.EmployeeSnapshot WHERE EmploymentId = @EmploymentId AND SnapshotDate = @AsOfDate)
                 THROW 50001, 'This engagement already has a snapshot for that date. Use the original batch or review the correction.', 1;
-            UPDATE hr.Employment SET TerminationDate = @TerminationDate, TerminationReasonId = @TerminationReasonId,
+            UPDATE hr.Employment SET TerminationDate = @TerminationDate, PlannedEndDate = @PlannedEndDate, TerminationReasonId = @TerminationReasonId,
                 SourceEntityCode = COALESCE(@SourceEntityCode, SourceEntityCode) WHERE EmploymentId = @EmploymentId;
             SET @PreviousSnapshotId = NULL;
             SELECT TOP (1) @PreviousSnapshotId = SnapshotId FROM hr.EmployeeSnapshot
             WHERE EmploymentId = @EmploymentId AND SnapshotDate < @AsOfDate ORDER BY SnapshotDate DESC;
-            INSERT hr.EmployeeSnapshot (EmploymentId, SnapshotDate, DepartmentId, CostCentreId, JobTitleId, PositionId, EmploymentTypeId, EmployeeStatusId, CompanyRuleId, RemunerationDefinitionId, SourceReportsToCode, GenderCode, RacialGroupCode, Disability, TerminationDate, TerminationReasonId, SourceBatchId)
-            VALUES (@EmploymentId, @AsOfDate, @DepartmentId, @CostCentreId, @JobTitleId, @PositionId, @EmploymentTypeId, @EmployeeStatusId, @CompanyRuleId, @RemunerationDefinitionId, @SourceReportsToCode, @GenderCode, @RacialGroupCode, @Disability, @TerminationDate, @TerminationReasonId, @ImportBatchId);
+            INSERT hr.EmployeeSnapshot (EmploymentId, SnapshotDate, DepartmentId, CostCentreId, JobTitleId, PositionId, EmploymentTypeId, EmployeeStatusId, CompanyRuleId, RemunerationDefinitionId, SourceReportsToCode, GenderCode, RacialGroupCode, Disability, TerminationDate, PlannedEndDate, TerminationReasonId, SourceBatchId)
+            VALUES (@EmploymentId, @AsOfDate, @DepartmentId, @CostCentreId, @JobTitleId, @PositionId, @EmploymentTypeId, @EmployeeStatusId, @CompanyRuleId, @RemunerationDefinitionId, @SourceReportsToCode, @GenderCode, @RacialGroupCode, @Disability, @TerminationDate, @PlannedEndDate, @TerminationReasonId, @ImportBatchId);
             SET @SnapshotId = SCOPE_IDENTITY();
             IF @PreviousSnapshotId IS NOT NULL
             BEGIN
@@ -337,6 +344,7 @@ BEGIN
                         ('GenderCode', CONVERT(nvarchar(500), p.GenderCode), CONVERT(nvarchar(500), n.GenderCode)),
                         ('RacialGroupCode', CONVERT(nvarchar(500), p.RacialGroupCode), CONVERT(nvarchar(500), n.RacialGroupCode)),
                         ('Disability', CONVERT(nvarchar(500), p.Disability), CONVERT(nvarchar(500), n.Disability)),
+                        ('PlannedEndDate', CONVERT(nvarchar(500), p.PlannedEndDate, 23), CONVERT(nvarchar(500), n.PlannedEndDate, 23)),
                         ('TerminationDate', CONVERT(nvarchar(500), p.TerminationDate, 23), CONVERT(nvarchar(500), n.TerminationDate, 23)),
                         ('TerminationReasonId', CONVERT(nvarchar(500), p.TerminationReasonId), CONVERT(nvarchar(500), n.TerminationReasonId))) v(ChangedField, OldValue, NewValue)
                 WHERE p.SnapshotId = @PreviousSnapshotId AND n.SnapshotId = @SnapshotId

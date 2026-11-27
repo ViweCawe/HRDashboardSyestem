@@ -5,7 +5,7 @@ BEGIN
     SET NOCOUNT ON;
     IF @Offset < 0 OR @PageSize < 1 OR @PageSize > 100 THROW 50001, 'Invalid paging parameters.', 1;
     SELECT e.PersonId, e.EmploymentId, e.EmployeeCode, COALESCE(p.DisplayName, CONCAT(p.FirstName, ' ', p.LastName)) DisplayName,
-        c.Name CompanyName, e.DateEngaged, s.TerminationDate, s.SnapshotDate, es.Name StatusName,
+        c.Name CompanyName, e.DateEngaged, s.TerminationDate, s.PlannedEndDate, s.SnapshotDate, es.Name StatusName,
         d.Name DepartmentName, j.Name JobTitleName, et.Name EmploymentTypeName
     FROM hr.Employment e JOIN hr.Person p ON p.PersonId = e.PersonId
     JOIN hr.Company c ON c.CompanyId = e.CompanyId

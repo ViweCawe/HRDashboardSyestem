@@ -108,13 +108,13 @@ public sealed class HrAccessTests
 
     private sealed class FixtureEmployeeRepository : IEmployeeRepository
     {
-        private static EmployeeListItem Employee => new() { PersonId = 1, EmploymentId = 101, EmployeeCode = "EX002", DisplayName = "Alex Example", CompanyName = "Demonstration Company", DateEngaged = new(2026, 2, 1), SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Operations", JobTitleName = "Supervisor", EmploymentTypeName = "Permanent" };
+        private static EmployeeListItem Employee => new() { PersonId = 1, EmploymentId = 101, EmployeeCode = "EX002", DisplayName = "Alex Example", CompanyName = "Demonstration Company", DateEngaged = new(2026, 2, 1), PlannedEndDate = new(2026, 12, 31), SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Operations", JobTitleName = "Supervisor", EmploymentTypeName = "Permanent" };
         public Task<IReadOnlyList<EmployeeListItem>> GetAsync(DateTime asOfDate, string? search = null, int offset = 0, int pageSize = 50, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<EmployeeListItem>>([Employee, new() { PersonId = 2, EmploymentId = 102, EmployeeCode = "EX001", DisplayName = "Jordan Sample", CompanyName = "Demonstration Company", DateEngaged = new(2026, 3, 1), SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Retail", JobTitleName = "Administrator", EmploymentTypeName = "Contract" }]);
         public Task<EmployeeOverview?> GetOverviewAsync(long employmentId, CancellationToken cancellationToken = default)
             => Task.FromResult<EmployeeOverview?>(employmentId != 101 ? null : new(Employee,
                 [Employee, new() { EmploymentId = 100, EmployeeCode = "EX001", DateEngaged = new(2020, 2, 1), StatusName = "Terminated" }],
-                [new() { SnapshotDate = new(2026, 7, 31), StatusName = "Active", DepartmentName = "Operations", CostCentreName = "Operations", JobTitleName = "Supervisor", EmploymentTypeName = "Permanent" }, new() { SnapshotDate = new(2026, 6, 30), StatusName = "Active", DepartmentName = "Operations", CostCentreName = "Operations", JobTitleName = "Administrator", EmploymentTypeName = "Permanent" }],
+                [new() { SnapshotDate = new(2026, 7, 31), PlannedEndDate = new(2026, 12, 31), StatusName = "Active", DepartmentName = "Operations", CostCentreName = "Operations", JobTitleName = "Supervisor", EmploymentTypeName = "Permanent" }, new() { SnapshotDate = new(2026, 6, 30), StatusName = "Active", DepartmentName = "Operations", CostCentreName = "Operations", JobTitleName = "Administrator", EmploymentTypeName = "Permanent" }],
                 [new() { FieldName = "Job title", OldValue = "Administrator", NewValue = "Supervisor", ChangeType = "DetectedChange", IsConfirmed = false }]));
     }
 }

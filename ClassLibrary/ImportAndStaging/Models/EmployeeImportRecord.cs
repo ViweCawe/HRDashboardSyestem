@@ -36,6 +36,7 @@ public sealed class EmployeeImportRecord
     public string? Disability { get; set; }
     public DateTime? DateEngaged { get; set; }
     public DateTime? TerminationDate { get; set; }
+    public DateTime? PlannedEndDate { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public DateTime? TransferDate { get; set; }
 }

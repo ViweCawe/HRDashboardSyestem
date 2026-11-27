@@ -19,6 +19,7 @@ public sealed class EmployeeSnapshot
     public string? RacialGroupCode { get; set; }
     public string? Disability { get; set; }
     public DateTime? TerminationDate { get; set; }
+    public DateTime? PlannedEndDate { get; set; }
     public int? TerminationReasonId { get; set; }
     public long SourceBatchId { get; set; }
 }

@@ -76,10 +76,62 @@ public sealed class EmployeeCsvReaderTests
         var noCountry = reader.Read(csv[..^2], AsOf);
         Assert.Contains(noCountry.Issues, i => i.RuleCode == "MissingPassportCountry");
     }
-    [Fact] public void ActiveStatusAndTerminationDetailsRequireReview()
+    [Theory]
+    [InlineData("30/06/2026")]
+    [InlineData("31/07/2026")]
+    [InlineData("30/09/2026")]
+    public void ActiveSourceStatusKeepsTheEndDateAsAPlanUntilSageChangesStatus(string endDate)
     {
-        var preview = reader.Read(Header + ",Termination Date,Termination Reason\n" + ValidRow + ",30/06/2026,DS - Discharged", AsOf);
-        Assert.Contains(preview.Issues, i => i.RuleCode == "ConflictingStatus");
+        var preview = reader.Read(Header + ",Termination Date,Termination Reason\n" + ValidRow + "," + endDate + ",END - Contract end", AsOf);
+        Assert.Empty(preview.Issues);
+        var record = Data(preview);
+        Assert.Equal("A", record.EmployeeStatusCode);
+        Assert.NotNull(record.PlannedEndDate);
+        Assert.Null(record.TerminationDate);
+        Assert.Null(record.EmploymentTypeCode);
+        Assert.Contains(endDate, preview.Rows[0].RawDataJson);
+    }
+    [Fact] public void ASourceTerminationRetainsTheActualDate()
+    {
+        var preview = reader.Read(Header + ",Termination Date\n" + ValidRow.Replace("A - Active", "T - Terminated") + ",2026/06/30", AsOf);
+        Assert.Empty(preview.Issues);
+        Assert.Equal(new DateTime(2026, 6, 30), Data(preview).TerminationDate);
+        Assert.Null(Data(preview).PlannedEndDate);
+    }
+    [Fact] public void PlannedEndCannotPrecedeEngagement()
+    {
+        var preview = reader.Read(Header + ",Termination Date\n" + ValidRow + ",31/01/2020", AsOf);
+        Assert.Contains(preview.Issues, i => i.RuleCode == "InvalidRange");
+    }
+    [Theory]
+    [InlineData("N/A")]
+    [InlineData(" n/a ")]
+    public void UnusedPassportNaDoesNotRequireACountryWhenIdIsSupplied(string unused)
+    {
+        var preview = reader.Read(Header + ",Passport No,Passport Country Code\n" + ValidRow + "," + unused + ",N/A", AsOf);
+        Assert.Empty(preview.Issues);
+        Assert.Equal("TEST-ID-001", Data(preview).NationalId);
+        Assert.Null(Data(preview).PassportNumber);
+        Assert.Null(Data(preview).PassportCountryCode);
+        Assert.Contains(unused.Trim(), preview.Rows[0].RawDataJson);
+    }
+    [Fact] public void UnusedIdNaAllowsMatchingByARealPassportAndCountry()
+    {
+        var preview = reader.Read(Header + ",Passport No,Passport Country Code\n" + ValidRow.Replace("TEST-ID-001", "N/A") + ",PASSPORT-001,ZA", AsOf);
+        Assert.Empty(preview.Issues);
+        Assert.Null(Data(preview).NationalId);
+        Assert.Equal("PASSPORT-001", Data(preview).PassportNumber);
+        Assert.Equal("ZA", Data(preview).PassportCountryCode);
+    }
+    [Fact] public void BothIdentityFieldsNaStillRequiresAReliableIdentifier()
+    {
+        var preview = reader.Read(Header + ",Passport No\n" + ValidRow.Replace("TEST-ID-001", "N/A") + ",N/A", AsOf);
+        Assert.Equal("MissingIdentity", Assert.Single(preview.Issues).RuleCode);
+    }
+    [Fact] public void AnActualPassportStillNeedsItsIssuingCountry()
+    {
+        var preview = reader.Read(Header + ",Passport No,Passport Country Code\n" + ValidRow.Replace("TEST-ID-001", "N/A") + ",PASSPORT-001,N/A", AsOf);
+        Assert.Equal("MissingPassportCountry", Assert.Single(preview.Issues).RuleCode);
     }
     [Fact] public void DoesNotGuessUsDateFormat()
     {

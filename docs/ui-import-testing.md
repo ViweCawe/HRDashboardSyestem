@@ -63,6 +63,9 @@ records/import status, with no fabricated workforce metrics.
 
 ## Negative and history checks
 
+- An active Sage record with a source termination date should show a planned end
+  date, preserve Active status, and have no actual termination until Sage supplies
+  a terminated record. N/A in an unused ID/passport field should not raise an issue.
 - Dates may use `dd/MM/yyyy`, `yyyy/MM/dd` or `yyyy-MM-dd`; `2026/07/01` is 1 July 2026.
 - Re-upload a previously rejected Review file after a parser update: it is
   validated again in the same batch, retaining its raw source and earlier issue history.

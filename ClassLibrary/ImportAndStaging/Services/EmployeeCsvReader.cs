@@ -40,6 +40,11 @@ public sealed class EmployeeCsvReader
             if (values.Length != headers.Length) throw new InvalidDataException($"Row {line} does not match the column count.");
             var raw = headers.Zip(values).ToDictionary(p => p.First, p => p.Second, StringComparer.OrdinalIgnoreCase);
             string? Get(string name) => raw.TryGetValue(name, out var v) && !string.IsNullOrWhiteSpace(v) ? v.Trim() : null;
+            string? IdentityValue(string name)
+            {
+                var value = Get(name);
+                return value?.Equals("N/A", StringComparison.OrdinalIgnoreCase) == true ? null : value;
+            }
             var before = issues.Count;
             void Issue(string field, string code, string message) => issues.Add(new() { SourceRowNumber = line, SourceField = field, RuleCode = code, Message = message, Severity = "Error" });
             DateTime? Date(string name)
@@ -52,8 +57,8 @@ public sealed class EmployeeCsvReader
             }
             var record = new EmployeeImportRecord
             {
-                EmployeeCode = Get("Employee Code"), NationalId = Get("ID Number"),
-                PassportNumber = Get("Passport No"), PassportCountryCode = Get("Passport Country Code")?.ToUpperInvariant(),
+                EmployeeCode = Get("Employee Code"), NationalId = IdentityValue("ID Number"),
+                PassportNumber = IdentityValue("Passport No"), PassportCountryCode = IdentityValue("Passport Country Code")?.ToUpperInvariant(),
                 FirstName = Get("First Name"), LastName = Get("Last Name"), DisplayName = Get("Display Name"),
                 SourceEntityCode = Get("Entity Code"), DateEngaged = Date("Date Engaged"),
                 TerminationDate = Date("Termination Date"), DateOfBirth = Date("Date of Birth"),
@@ -86,8 +91,13 @@ public sealed class EmployeeCsvReader
             if (record.DateOfBirth > asOfDate.Date || record.DateOfBirth > record.DateEngaged)
                 Issue("Date of Birth", "InvalidRange", "Date of birth cannot follow the reporting or engagement date.");
             if ((record.EmployeeStatusCode?.Equals("A", StringComparison.OrdinalIgnoreCase) == true || record.EmployeeStatusName?.Equals("Active", StringComparison.OrdinalIgnoreCase) == true)
-                && (record.TerminationDate is not null || record.TerminationReasonCode is not null))
-                Issue("Employee Status", "ConflictingStatus", "Active status with termination details requires HR review.");
+                && record.TerminationDate is not null)
+            {
+                // HR records a planned payroll/contract end date while the source
+                // employee is still active. It does not close the engagement.
+                record.PlannedEndDate = record.TerminationDate;
+                record.TerminationDate = null;
+            }
             var key = $"{record.CompanyCode}|{record.EmployeeCode}|{record.DateEngaged:yyyy-MM-dd}";
             if (!engagementKeys.Add(key)) Issue("Employee Code", "DuplicateEngagement", "This engagement appears more than once in the file.");
             ValidateLengths(record, (field, max) => Issue(field, "TooLong", $"The value exceeds {max} characters."));

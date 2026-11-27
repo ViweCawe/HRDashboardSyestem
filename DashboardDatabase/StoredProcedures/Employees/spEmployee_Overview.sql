@@ -3,7 +3,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SELECT e.PersonId, e.EmploymentId, e.EmployeeCode, COALESCE(p.DisplayName, CONCAT(p.FirstName, ' ', p.LastName)) DisplayName,
-        c.Name CompanyName, e.DateEngaged, s.TerminationDate, s.SnapshotDate, es.Name StatusName,
+        c.Name CompanyName, e.DateEngaged, s.TerminationDate, s.PlannedEndDate, s.SnapshotDate, es.Name StatusName,
         d.Name DepartmentName, j.Name JobTitleName, et.Name EmploymentTypeName FROM hr.Employment e JOIN hr.Person p ON p.PersonId = e.PersonId
     JOIN hr.Company c ON c.CompanyId = e.CompanyId
     OUTER APPLY (SELECT TOP (1) * FROM hr.EmployeeSnapshot ss WHERE ss.EmploymentId = e.EmploymentId  ORDER BY ss.SnapshotDate DESC) s
@@ -12,7 +12,7 @@ BEGIN
     LEFT JOIN hr.JobTitle j ON j.JobTitleId = s.JobTitleId
     LEFT JOIN hr.EmploymentType et ON et.EmploymentTypeId = s.EmploymentTypeId WHERE e.EmploymentId = @EmploymentId;
     SELECT e.PersonId, e.EmploymentId, e.EmployeeCode, COALESCE(p.DisplayName, CONCAT(p.FirstName, ' ', p.LastName)) DisplayName,
-        c.Name CompanyName, e.DateEngaged, s.TerminationDate, s.SnapshotDate, es.Name StatusName,
+        c.Name CompanyName, e.DateEngaged, s.TerminationDate, s.PlannedEndDate, s.SnapshotDate, es.Name StatusName,
         d.Name DepartmentName, j.Name JobTitleName, et.Name EmploymentTypeName FROM hr.Employment e JOIN hr.Person p ON p.PersonId = e.PersonId
     JOIN hr.Company c ON c.CompanyId = e.CompanyId
     OUTER APPLY (SELECT TOP (1) * FROM hr.EmployeeSnapshot ss WHERE ss.EmploymentId = e.EmploymentId  ORDER BY ss.SnapshotDate DESC) s
@@ -21,7 +21,7 @@ BEGIN
     LEFT JOIN hr.JobTitle j ON j.JobTitleId = s.JobTitleId
     LEFT JOIN hr.EmploymentType et ON et.EmploymentTypeId = s.EmploymentTypeId
     WHERE e.PersonId = (SELECT PersonId FROM hr.Employment WHERE EmploymentId = @EmploymentId) ORDER BY e.DateEngaged DESC;
-    SELECT s.SnapshotDate, es.Name StatusName, d.Name DepartmentName, c.Name CostCentreName, j.Name JobTitleName, et.Name EmploymentTypeName
+    SELECT s.SnapshotDate, s.PlannedEndDate, s.TerminationDate, es.Name StatusName, d.Name DepartmentName, c.Name CostCentreName, j.Name JobTitleName, et.Name EmploymentTypeName
     FROM hr.EmployeeSnapshot s
     LEFT JOIN hr.EmployeeStatus es ON es.EmployeeStatusId = s.EmployeeStatusId
     LEFT JOIN hr.Department d ON d.DepartmentId = s.DepartmentId
@@ -29,7 +29,7 @@ BEGIN
     LEFT JOIN hr.JobTitle j ON j.JobTitleId = s.JobTitleId
     LEFT JOIN hr.EmploymentType et ON et.EmploymentTypeId = s.EmploymentTypeId
     WHERE s.EmploymentId = @EmploymentId ORDER BY s.SnapshotDate DESC;
-    SELECT CASE c.ChangedField WHEN 'DepartmentId' THEN 'Department' WHEN 'CostCentreId' THEN 'Cost centre' WHEN 'JobTitleId' THEN 'Job title' WHEN 'PositionId' THEN 'Position' WHEN 'EmploymentTypeId' THEN 'Employment type' WHEN 'EmployeeStatusId' THEN 'Employee status' WHEN 'CompanyRuleId' THEN 'Company rule' WHEN 'RemunerationDefinitionId' THEN 'Remuneration definition' WHEN 'TerminationReasonId' THEN 'Termination reason' WHEN 'SourceReportsToCode' THEN 'Reports to' WHEN 'GenderCode' THEN 'Gender' WHEN 'RacialGroupCode' THEN 'Racial group' WHEN 'TerminationDate' THEN 'Termination date' ELSE c.ChangedField END FieldName,
+    SELECT CASE c.ChangedField WHEN 'DepartmentId' THEN 'Department' WHEN 'CostCentreId' THEN 'Cost centre' WHEN 'JobTitleId' THEN 'Job title' WHEN 'PositionId' THEN 'Position' WHEN 'EmploymentTypeId' THEN 'Employment type' WHEN 'EmployeeStatusId' THEN 'Employee status' WHEN 'CompanyRuleId' THEN 'Company rule' WHEN 'RemunerationDefinitionId' THEN 'Remuneration definition' WHEN 'TerminationReasonId' THEN 'Termination reason' WHEN 'SourceReportsToCode' THEN 'Reports to' WHEN 'GenderCode' THEN 'Gender' WHEN 'RacialGroupCode' THEN 'Racial group' WHEN 'PlannedEndDate' THEN 'Planned end date' WHEN 'TerminationDate' THEN 'Termination date' ELSE c.ChangedField END FieldName,
         CASE c.ChangedField
             WHEN 'DepartmentId' THEN COALESCE((SELECT Name FROM hr.Department WHERE DepartmentId = TRY_CONVERT(int, c.OldValue)), c.OldValue)
             WHEN 'CostCentreId' THEN COALESCE((SELECT Name FROM hr.CostCentre WHERE CostCentreId = TRY_CONVERT(int, c.OldValue)), c.OldValue)
