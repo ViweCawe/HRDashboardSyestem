@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="ClassLibrary/ClassLibrary.csproj" />
+  <Project Path="DashboardDatabase/DashboardDatabase.sqlproj" Id="583559ff-1712-409f-b63b-8b777b149944">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="HrDashboard/HrDashboard.csproj" />
+</Solution>
