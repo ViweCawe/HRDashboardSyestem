@@ -75,7 +75,7 @@ public sealed class EmployeeCsvReader
             Pair("Termination Reason", (c,n) => { record.TerminationReasonCode=c; record.TerminationReasonName=n; });
             foreach (var (field, value) in new[] { ("Employee Code", record.EmployeeCode), ("First Name", record.FirstName), ("Last Name", record.LastName), ("Company", record.CompanyCode), ("Employee Status", record.EmployeeStatusCode) })
                 if (value is null) Issue(field, "Required", "A required value is missing.");
-            if (record.DateEngaged is null) Issue("Date Engaged", "Required", "An engagement date is required.");
+            if (Get("Date Engaged") is null) Issue("Date Engaged", "Required", "An engagement date is required.");
             if (record.NationalId is null && record.PassportNumber is null)
                 Issue("ID Number", "MissingIdentity", "Supply an ID number or a passport and country; names alone cannot match a person.");
             if (record.NationalId is not null && new[] { "UNKNOWN", "N/A", "NA", "NONE", "NULL", "NOT PROVIDED", "0", "0000000000000" }.Contains(record.NationalId, StringComparer.OrdinalIgnoreCase))

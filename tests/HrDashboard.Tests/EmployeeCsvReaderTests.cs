@@ -58,6 +58,28 @@ public sealed class EmployeeCsvReaderTests
     {
         Assert.Contains(Read(ValidRow.Replace("01/02/2020", "07/31/2020")).Issues, i => i.RuleCode == "InvalidDate");
     }
+    [Theory]
+    [InlineData("31/02/2020")]
+    [InlineData("not-a-date")]
+    [InlineData("07/31/2020")]
+    public void AProvidedInvalidEngagementDateIsNotAlsoReportedAsMissing(string value)
+    {
+        var preview = Read(ValidRow.Replace("01/02/2020", value));
+        var issue = Assert.Single(preview.Issues, i => i.SourceField == "Date Engaged");
+        Assert.Equal("InvalidDate", issue.RuleCode);
+        Assert.Equal("Invalid", preview.Rows[0].ValidationStatus);
+        Assert.Null(Data(preview).DateEngaged);
+    }
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ABlankEngagementDateHasOnlyTheRequiredIssue(string value)
+    {
+        var preview = Read(ValidRow.Replace("01/02/2020", value));
+        var issue = Assert.Single(preview.Issues, i => i.SourceField == "Date Engaged");
+        Assert.Equal("Required", issue.RuleCode);
+        Assert.Equal("Invalid", preview.Rows[0].ValidationStatus);
+    }
     [Fact] public void TerminationCannotPrecedeEngagement()
     {
         var preview = reader.Read(Header + ",Termination Date\n" + ValidRow.Replace("A - Active", "T - Terminated") + ",31/01/2020", AsOf);
