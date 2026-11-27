@@ -1,6 +1,9 @@
+using ClassLibrary;
+using HrDashboard.Security;
 using HrDashboard.Components;
 using HrDashboard.Components.Account;
 using HrDashboard.Data;
+using HrDashboard.Diagnostics;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +15,14 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<DevelopmentAdminProvisioner>();
+builder.Services.AddScoped<HrErrorReporter>();
+builder.Services.AddHrData(builder.Configuration.GetConnectionString("HrConnection"));
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(HrPolicies.Read, policy => policy.RequireAuthenticatedUser().RequireRole("HRAdmin", "HRReader"));
+    options.AddPolicy(HrPolicies.Import, policy => policy.RequireAuthenticatedUser().RequireRole("HRAdmin"));
+});
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
@@ -32,6 +43,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.SignIn.RequireConfirmedAccount = true;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
@@ -39,6 +51,27 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 var app = builder.Build();
+
+// The local operator supplies credentials through the interactive setup script.
+// No default password, public bootstrap endpoint or automatic administrator exists.
+var bootstrapAt = Array.IndexOf(args, "--bootstrap-hr-admin");
+if (bootstrapAt >= 0)
+{
+    try
+    {
+        var email = bootstrapAt + 1 < args.Length ? args[bootstrapAt + 1] : string.Empty;
+        var password = Environment.GetEnvironmentVariable("HR_BOOTSTRAP_PASSWORD") ?? string.Empty;
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<DevelopmentAdminProvisioner>().ProvisionAsync(email, password);
+        Console.WriteLine("Local HRAdmin account is ready. Sign in with the email and password you supplied.");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("Local account setup failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -64,3 +97,6 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 
 app.Run();
+
+// Exposes the entry point to the HTTP integration-test host.
+public partial class Program { }

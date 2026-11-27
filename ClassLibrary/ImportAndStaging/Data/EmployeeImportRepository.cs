@@ -1,0 +1,59 @@
+using System.Data;
+using System.Text.Json;
+using ClassLibrary.DataAccess;
+using ClassLibrary.ImportAndStaging.Models;
+using Dapper;
+
+namespace ClassLibrary.ImportAndStaging.Data;
+
+public sealed class EmployeeImportRepository(ISqlConnectionFactory connections) : IEmployeeImportRepository
+{
+    public async Task<ImportBatch> StageAsync(string fileName, string fileHash, DateTime asOfDate, string importedBy, EmployeeImportPreview preview, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return await connection.QuerySingleAsync<ImportBatch>(new CommandDefinition("hr.spEmployeeImport_Stage", new
+        {
+            FileName = fileName, FileHash = fileHash, AsOfDate = asOfDate.Date, ImportedBy = importedBy,
+            RowsJson = JsonSerializer.Serialize(preview.Rows), IssuesJson = JsonSerializer.Serialize(preview.Issues)
+        }, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
+    public async Task<IReadOnlyList<ImportBatch>> GetRecentAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return (await connection.QueryAsync<ImportBatch>(new CommandDefinition("hr.spEmployeeImport_List", commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken))).AsList();
+    }
+    public async Task<IReadOnlyList<ImportIssue>> GetIssuesAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return (await connection.QueryAsync<ImportIssue>(new CommandDefinition("hr.spEmployeeImport_Issues", new { ImportBatchId = batchId }, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken))).AsList();
+    }
+    public async Task<EmployeeImportBatchSummary?> GetBatchAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<EmployeeImportBatchSummary>(new CommandDefinition(
+            "hr.spEmployeeImport_Get", new { ImportBatchId = batchId }, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
+    public async Task<IReadOnlyList<EmployeeImportPreviewRow>> GetRowsAsync(long batchId, int offset = 0, int pageSize = 50, string? status = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (status is not (null or "Valid" or "Invalid" or "Published")) throw new ArgumentException("Unknown row status.", nameof(status));
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return (await connection.QueryAsync<EmployeeImportPreviewRow>(new CommandDefinition(
+            "hr.spEmployeeImport_Rows", new { ImportBatchId = batchId, Offset = offset, PageSize = pageSize, Status = status },
+            commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken))).AsList();
+    }
+    public async Task<ImportDashboardSummary> GetDashboardAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        return await connection.QuerySingleAsync<ImportDashboardSummary>(new CommandDefinition(
+            "hr.spEmployeeImport_Dashboard", commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
+    public async Task PublishAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition("hr.spEmployeeImport_Publish", new { ImportBatchId = batchId },
+            commandTimeout: 300, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
+}

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -56,7 +56,50 @@
   <Import Condition="'$(SQLDBExtensionsRefPath)' == ''" Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
   <ItemGroup>
     <Folder Include="Properties" />
+    <Folder Include="Schemas" />
     <Folder Include="StoredProcedures" />
-    <Folder Include="NewFolder1\" />
+    <Folder Include="StoredProcedures\Employees" />
+    <Folder Include="StoredProcedures\Imports" />
+    <Folder Include="Tables" />
+    <Folder Include="Tables\HoursAndLeave" />
+    <Folder Include="Tables\ImportAndStaging" />
+    <Folder Include="Tables\PeoplAndEmployment" />
+    <Folder Include="Tables\ReferenceData" />
+  </ItemGroup>
+  <ItemGroup>
+    <Build Include="Schemas\hr.sql" />
+    <Build Include="StoredProcedures\Employees\spEmployee_List.sql" />
+    <Build Include="StoredProcedures\Employees\spEmployee_Overview.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Dashboard.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Get.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Rows.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Issues.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_List.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Publish.sql" />
+    <Build Include="StoredProcedures\Imports\spEmployeeImport_Stage.sql" />
+    <Build Include="Tables\HoursAndLeave\HoursCategory.sql" />
+    <Build Include="Tables\HoursAndLeave\HoursEntry.sql" />
+    <Build Include="Tables\HoursAndLeave\LeaveBalance.sql" />
+    <Build Include="Tables\HoursAndLeave\LeaveType.sql" />
+    <Build Include="Tables\HoursAndLeave\ReportingPeriod.sql" />
+    <Build Include="Tables\ImportAndStaging\EmployeeImportRow.sql" />
+    <Build Include="Tables\ImportAndStaging\HoursImportRow.sql" />
+    <Build Include="Tables\ImportAndStaging\ImportBatch.sql" />
+    <Build Include="Tables\ImportAndStaging\ImportIssue.sql" />
+    <Build Include="Tables\ImportAndStaging\LeaveImportRow.sql" />
+    <Build Include="Tables\PeoplAndEmployment\EmployeeSnapshot.sql" />
+    <Build Include="Tables\PeoplAndEmployment\Employment.sql" />
+    <Build Include="Tables\PeoplAndEmployment\EmploymentChange.sql" />
+    <Build Include="Tables\PeoplAndEmployment\Person.sql" />
+    <Build Include="Tables\ReferenceData\Company.sql" />
+    <Build Include="Tables\ReferenceData\CompanyRule.sql" />
+    <Build Include="Tables\ReferenceData\CostCentre.sql" />
+    <Build Include="Tables\ReferenceData\Department.sql" />
+    <Build Include="Tables\ReferenceData\EmployeeStatus.sql" />
+    <Build Include="Tables\ReferenceData\EmploymentType.sql" />
+    <Build Include="Tables\ReferenceData\JobTitle.sql" />
+    <Build Include="Tables\ReferenceData\Position.sql" />
+    <Build Include="Tables\ReferenceData\RemunerationDefinition.sql" />
+    <Build Include="Tables\ReferenceData\TerminationReason.sql" />
   </ItemGroup>
 </Project>

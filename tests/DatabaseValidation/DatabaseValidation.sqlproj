@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.Build.Sql/2.4.0">
+  <PropertyGroup>
+    <Name>DashboardDatabase</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
+    <EnableDefaultSqlItems>false</EnableDefaultSqlItems>
+    <UseTaskHostFactory>false</UseTaskHostFactory>
+  </PropertyGroup>
+  <ItemGroup>
+    <Build Include="../../DashboardDatabase/Schemas/**/*.sql" />
+    <Build Include="../../DashboardDatabase/Tables/**/*.sql" />
+    <Build Include="../../DashboardDatabase/StoredProcedures/**/*.sql" />
+  </ItemGroup>
+</Project>

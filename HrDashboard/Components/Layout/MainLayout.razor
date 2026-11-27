@@ -1,23 +1,14 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
+<a class="hr-skip-link" href="#main-content">Skip to content</a>
+<div class="hr-shell">
+    <aside class="hr-sidebar"><NavMenu /></aside>
+    <main class="hr-main" id="main-content">
+        <header class="hr-topbar"><div><span class="hr-workspace-dot"></span><span>HR workspace</span><span class="hr-topbar-divider">/</span><span class="hr-muted">People &amp; reporting</span></div>
+            <AuthorizeView><Authorized><a class="hr-account-link" href="Account/Manage"><AppIcon Name="account" /><span>@context.User.Identity?.Name</span></a></Authorized><NotAuthorized><a class="hr-account-link" href="Account/Login"><AppIcon Name="account" /><span>Sign in</span></a></NotAuthorized></AuthorizeView>
+        </header>
+        <article class="hr-content">@Body</article>
+        <footer class="hr-footer"><span>HR Dashboard</span><span>Clear records. Confident reporting.</span></footer>
     </main>
 </div>
-
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+<div id="blazor-error-ui" data-nosnippet>Something went wrong. <a href=".">Reload this page</a><button class="dismiss" aria-label="Dismiss error">×</button></div>

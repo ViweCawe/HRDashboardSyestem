@@ -1,0 +1,8 @@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="hr-message hr-message-@Tone" role="@(Tone == "error" ? "alert" : "status")"><AppIcon Name="@(Tone == "error" ? "alert" : "check")" /><div>@Message</div></div>
+}
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string Tone { get; set; } = "success";
+}

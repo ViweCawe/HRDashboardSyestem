@@ -1,0 +1,65 @@
+@page "/imports/employees"
+@attribute [Authorize(Policy = HrPolicies.Import)]
+@rendermode InteractiveServer
+@using System.Security.Claims
+@inject IEmployeeImportRepository Imports
+@inject EmployeeImportService ImportService
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+@inject HrErrorReporter Errors
+
+<PageTitle>Import centre · HR Dashboard</PageTitle>
+<PageHeader Eyebrow="DATA MANAGEMENT" Title="Import centre" Description="Bring your Sage employee export into the workspace. Validate first, review the records, then publish." />
+<ol class="hr-steps" aria-label="Import progress"><li class="current"><span>1</span>Upload file</li><li><span>2</span>Review &amp; validate</li><li><span>3</span>Publish records</li></ol>
+<div class="hr-source-grid" aria-label="Available data sources">
+    <div class="hr-source-card selected"><AppIcon Name="people" /><div><strong>Employee records</strong><small>Active &amp; terminated employees</small></div><span class="hr-tag">Available</span></div>
+    <div class="hr-source-card unavailable"><AppIcon Name="clock" /><div><strong>Hours</strong><small>Clocking &amp; overtime records</small></div><span class="hr-tag">Coming next</span></div>
+    <div class="hr-source-card unavailable"><AppIcon Name="file" /><div><strong>Leave balances</strong><small>Balances by employee &amp; leave type</small></div><span class="hr-tag">Coming next</span></div>
+</div>
+<MessageBanner Message="@error" Tone="error" />
+<div class="hr-two-col">
+    <section class="hr-panel"><div class="hr-panel-header"><div><h2>Upload employee records</h2><p>Use the employee list exported from Sage.</p></div><span class="hr-tag">CSV</span></div><div class="hr-panel-body">
+        <div class="hr-form-grid"><div class="hr-field"><label for="source-date">Export as-of date</label><InputDate id="source-date" class="form-control" @bind-Value="asOf" disabled="@busy" /><p>The date represented by this export.</p></div><div class="hr-field"><label for="delimiter">CSV delimiter</label><select id="delimiter" class="form-select" @bind="delimiter" disabled="@busy"><option value=",">Comma (,)</option><option value=";">Semicolon (;)</option></select><p>Choose the separator used in your file.</p></div></div>
+        <div class="hr-upload-box"><span class="hr-upload-symbol"><AppIcon Name="upload" /></span><h3>Choose your employee export</h3><p>UTF-8 CSV · Up to 5 MB · Maximum 20,000 records</p><label class="visually-hidden" for="employee-file">Employee CSV file</label><InputFile id="employee-file" class="form-control hr-file-input" accept=".csv" OnChange="ChooseFile" disabled="@busy" />@if (file is not null) { <p class="hr-file-info">@file.Name · @((file.Size / 1024d).ToString("N1")) KB</p> }</div>
+        <div class="hr-form-footer"><small><AppIcon Name="shield" />Employee records change only after you publish a validated batch.</small><button class="btn btn-primary" disabled="@(busy || file is null)" @onclick="StageAsync">@(busy ? "Validating…" : "Validate file")<AppIcon Name="arrow" /></button></div>
+    </div></section>
+    <aside class="hr-note-card"><AppIcon Name="file" /><h3>Before you upload</h3><p>A consistent export helps us connect the right records.</p><ul class="hr-checklist"><li><AppIcon Name="check" />Include employee code and engagement date.</li><li><AppIcon Name="check" />Supply an ID number, or passport with country. ESS approvers may omit these.</li><li><AppIcon Name="check" />Keep company and status columns included.</li><li><AppIcon Name="check" />Use dates in day/month/year or year/month/day format.</li></ul><a class="hr-inline-link mb-3" href="examples/employees.csv" download="employees-example.csv"><AppIcon Name="file" />Download example CSV</a><p class="hr-small">Reappointments remain separate engagements. Repeating the same file and date will not create duplicates.</p></aside>
+</div>
+<section class="hr-panel"><div class="hr-panel-header"><div><h2>Recent employee imports</h2><p>Track validation and publication for your latest 50 batches.</p></div><button class="btn btn-link" disabled="@busy" @onclick="LoadRecentAsync"><AppIcon Name="history" />Refresh</button></div>
+@if (batches.Count == 0) { <EmptyState Icon="upload" Title="Your first import starts here" Description="Choose an employee export above. After validation, your batch and any issues will appear here." /> }
+else { <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>File</th><th>Export date</th><th>Records</th><th>Status</th><th><span class="visually-hidden">Open batch</span></th></tr></thead><tbody>
+@foreach (var batch in batches) { <tr><td><a href="@($"imports/employees/{batch.ImportBatchId}")"><strong>@batch.FileName</strong></a><small>Batch #@batch.ImportBatchId</small></td><td>@batch.SourceAsOfDate.ToString("dd MMM yyyy")</td><td>@batch.RowCount.ToString("N0")</td><td><StatusBadge Status="@batch.Status" /></td><td><a class="hr-icon-link" href="@($"imports/employees/{batch.ImportBatchId}")" aria-label="@($"Review batch {batch.ImportBatchId}")"><AppIcon Name="arrow" /></a></td></tr> }
+</tbody></table></div> }
+</section>
+@code {
+    private DateTime asOf = DateTime.Today;
+    private string delimiter = ",";
+    private IBrowserFile? file;
+    private bool busy;
+    private string? error;
+    private IReadOnlyList<ImportBatch> batches = [];
+    protected override Task OnInitializedAsync() => LoadRecentAsync();
+    private void ChooseFile(InputFileChangeEventArgs args) { file = args.FileCount == 1 ? args.File : null; error = null; }
+    private async Task LoadRecentAsync()
+    {
+        try { batches = await Imports.GetRecentAsync(); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException) { error = Errors.Report(ex, "Load recent imports"); }
+    }
+    private async Task StageAsync()
+    {
+        if (busy || file is null) return;
+        busy = true; error = null;
+        try
+        {
+            if (file.Size > EmployeeImportService.MaxFileSize) throw new InvalidDataException("Choose a CSV file smaller than 5 MB.");
+            await using var stream = file.OpenReadStream(EmployeeImportService.MaxFileSize);
+            var user = (await Authentication.GetAuthenticationStateAsync()).User;
+            var actor = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("Sign in before importing.");
+            var batch = await ImportService.StageAsync(stream, file.Name, asOf, actor, delimiter);
+            Navigation.NavigateTo($"imports/employees/{batch.ImportBatchId}");
+        }
+        catch (InvalidDataException ex) { error = ex.Message; }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException or IOException) { error = Errors.Report(ex, "Validate and stage employee file"); }
+        finally { busy = false; }
+    }
+}

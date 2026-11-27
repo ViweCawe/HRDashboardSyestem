@@ -5,4 +5,8 @@
     <Deploy />
   </Project>
   <Project Path="HrDashboard/HrDashboard.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/HrDashboard.Tests/HrDashboard.Tests.csproj" />
+    <Project Path="tests/HrDashboard.DatabaseChecks/HrDashboard.DatabaseChecks.csproj" />
+  </Folder>
 </Solution>

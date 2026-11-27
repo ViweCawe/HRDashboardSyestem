@@ -1,0 +1,57 @@
+@page "/employees"
+@attribute [Authorize(Policy = HrPolicies.Read)]
+@rendermode InteractiveServer
+@inject IEmployeeRepository Employees
+@inject HrErrorReporter Errors
+
+<PageTitle>Employees · HR Dashboard</PageTitle>
+<PageHeader Eyebrow="YOUR WORKFORCE" Title="Employee records" Description="Explore current and previous engagements. Open a record to follow employment history and detected changes.">
+    <Actions><AuthorizeView Policy="@HrPolicies.Import"><a class="btn btn-primary" href="imports/employees"><AppIcon Name="upload" />Import employees</a></AuthorizeView></Actions>
+</PageHeader>
+<MessageBanner Message="@error" Tone="error" />
+<section class="hr-panel">
+    <div class="hr-filter-bar"><div class="hr-field hr-search-field"><label for="employee-search">Find an employee</label><input id="employee-search" class="form-control" maxlength="200" placeholder="Search by name or employee code" @bind="search" /></div><div class="hr-field"><label for="as-of">Snapshot as of</label><InputDate id="as-of" class="form-control" @bind-Value="asOf" /></div><button class="btn btn-primary" disabled="@busy" @onclick="SearchAsync"><AppIcon Name="search" />Apply filters</button></div>
+    <div class="hr-panel-header"><div><h2>All employment engagements</h2><p>Using the latest available snapshot on or before @asOf.ToString("dd MMM yyyy").</p></div><span class="hr-tag">@rows.Count on this page</span></div>
+    @if (busy) { <div class="hr-loading" role="status"><span class="hr-spinner"></span>Loading employee records…</div> }
+    else if (rows.Count == 0 && error is null)
+    {
+        <EmptyState Icon="people" Title="No employee records match this view" Description="Try another name or date. If you have not published an employee export yet, start in the import centre."><AuthorizeView Policy="@HrPolicies.Import"><a class="btn btn-outline-secondary" href="imports/employees">Import employee data<AppIcon Name="arrow" /></a></AuthorizeView></EmptyState>
+    }
+    else if (rows.Count > 0)
+    {
+        <div class="hr-table-wrap"><table class="hr-table"><thead><tr><th>Employee</th><th>Employee code</th><th>Department</th><th>Job title</th><th>Employment type</th><th>Status</th><th><span class="visually-hidden">Open employee</span></th></tr></thead><tbody>
+        @foreach (var row in rows) { <tr><td><div class="hr-person-cell"><span class="hr-avatar">@EmployeeInitials.For(row.DisplayName)</span><div><a href="@($"employees/{row.EmploymentId}")"><strong>@row.DisplayName</strong></a><small>@row.CompanyName</small></div></div></td><td><span class="hr-code">@row.EmployeeCode</span></td><td>@(row.DepartmentName ?? "Not supplied")</td><td>@(row.JobTitleName ?? "Not supplied")</td><td>@(row.EmploymentTypeName ?? "Not supplied")</td><td><StatusBadge Status="@row.StatusName" />@if (row.PlannedEndDate is DateTime plannedEnd) { <small>Planned end @plannedEnd.ToString("dd MMM yyyy")</small> }</td><td><a class="hr-icon-link" href="@($"employees/{row.EmploymentId}")" aria-label="@($"Open {row.DisplayName}")"><AppIcon Name="arrow" /></a></td></tr> }
+        </tbody></table></div>
+    }
+    <div class="hr-table-footer"><span>Page @(offset / PageSize + 1) · Up to @PageSize engagements per page</span><div class="hr-pagination"><button class="btn btn-outline-secondary" disabled="@(busy || offset == 0)" @onclick="PreviousAsync">Previous</button><button class="btn btn-outline-secondary" disabled="@(busy || rows.Count < PageSize)" @onclick="NextAsync">Next</button></div></div>
+</section>
+<p class="hr-muted hr-small"><AppIcon Name="history" /> A reappointment appears as a separate engagement with a new employee code. Open either record to see the person's linked engagements.</p>
+@code {
+    [SupplyParameterFromQuery(Name = "asOf")] public DateTime? RequestedAsOf { get; set; }
+    private const int PageSize = 50;
+    private DateTime asOf = DateTime.Today;
+    private string? search, error;
+    private int offset;
+    private bool busy, loaded;
+    private DateTime? lastRequested;
+    private IReadOnlyList<EmployeeListItem> rows = [];
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!loaded || RequestedAsOf != lastRequested)
+        {
+            asOf = RequestedAsOf?.Date ?? DateTime.Today; lastRequested = RequestedAsOf; loaded = true; offset = 0;
+            await LoadAsync();
+        }
+    }
+    private async Task SearchAsync() { offset = 0; await LoadAsync(); }
+    private async Task PreviousAsync() { offset = Math.Max(0, offset - PageSize); await LoadAsync(); }
+    private async Task NextAsync() { offset += PageSize; await LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        busy = true; error = null;
+        try { rows = await Employees.GetAsync(asOf, string.IsNullOrWhiteSpace(search) ? null : search.Trim(), offset, PageSize); }
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
+        { rows = []; error = Errors.Report(ex, "Load employee records"); }
+        finally { busy = false; }
+    }
+}

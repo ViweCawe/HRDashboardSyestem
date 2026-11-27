@@ -1,0 +1,12 @@
+<span class="hr-status @Tone"><span class="hr-status-dot"></span>@Label</span>
+@code {
+    [Parameter] public string? Status { get; set; }
+    private string Label => Status switch { "Staged" => "Ready to publish", "Review" => "Needs review", "Valid" => "Valid", null or "" => "Not supplied", _ => Status };
+    private string Tone => Status?.ToLowerInvariant() switch
+    {
+        "published" or "valid" or "active" or "a" => "hr-status-success",
+        "review" or "invalid" => "hr-status-warning",
+        "staged" => "hr-status-info",
+        _ => "hr-status-neutral"
+    };
+}

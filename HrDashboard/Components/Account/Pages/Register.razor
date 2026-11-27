@@ -1,4 +1,4 @@
-﻿@page "/Account/Register"
+@page "/Account/Register"
 
 @using System.ComponentModel.DataAnnotations
 @using System.Text
@@ -15,45 +15,18 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Register</PageTitle>
-
-<h1>Register</h1>
-
-<div class="row">
-    <div class="col-lg-6">
-        <StatusMessage Message="@Message" />
-        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
-            <DataAnnotationsValidator />
-            <h2>Create a new account.</h2>
-            <hr />
-            <ValidationSummary class="text-danger" role="alert" />
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                <label for="Input.Email">Email</label>
-                <ValidationMessage For="() => Input.Email" class="text-danger" />
-            </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.Password">Password</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger" />
-            </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.ConfirmPassword">Confirm Password</label>
-                <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
-            </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
-        </EditForm>
-    </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Use another service to register.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
-</div>
-
+@layout AuthLayout
+<PageTitle>Create account · HR Dashboard</PageTitle>
+<p class="hr-eyebrow">GET STARTED</p><h1 class="hr-auth-title">Create your account</h1><p class="hr-auth-intro">An HR administrator will grant the access you need.</p>
+<StatusMessage Message="@Message" />
+<EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register" class="hr-auth-form">
+    <DataAnnotationsValidator /><ValidationSummary class="text-danger" role="alert" />
+    <div class="hr-field"><label for="Input.Email">Work email</label><InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="you@company.com" /><ValidationMessage For="() => Input.Email" /></div>
+    <div class="hr-field"><label for="Input.Password">Password</label><InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Choose a strong password" /><ValidationMessage For="() => Input.Password" /></div>
+    <div class="hr-field"><label for="Input.ConfirmPassword">Confirm password</label><InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Repeat your password" /><ValidationMessage For="() => Input.ConfirmPassword" /></div>
+    <button type="submit" class="btn btn-primary hr-btn-wide">Create account<AppIcon Name="arrow" /></button>
+</EditForm>
+<p class="hr-auth-switch">Already have an account? <a href="Account/Login">Sign in</a></p>
 @code {
     private IEnumerable<IdentityError>? identityErrors;
 
