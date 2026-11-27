@@ -16,9 +16,15 @@ args=sys.argv[1:]
 with open(os.environ['HR_MOCK_LOG'],'a') as f:
  f.write(json.dumps({'command':name,'args':args,'testConnection':os.getenv('HR_TEST_CONNECTION'),'noPathConversion':os.getenv('MSYS_NO_PATHCONV')})+'\n')
 if name=='SqlLocalDB.exe':
- if args[0]=='info':
-  if os.getenv('HR_MOCK_HAS_INSTANCE','1')=='0' and not Path(os.environ['HR_MOCK_STATE']).exists(): sys.exit(1)
-  print('Name: HRDashboard2025\r\nVersion: '+os.getenv('HR_MOCK_VERSION','17.0.4025.3')+'\r\nState: Stopped')
+ exists=os.getenv('HR_MOCK_HAS_INSTANCE','1')=='1' or Path(os.environ['HR_MOCK_STATE']).exists()
+ if args==['info']:
+  print('MSSQLLocalDB')
+  if exists: print(os.getenv('HR_MOCK_LIST_NAME','HRDashboard2025'))
+ elif args[0]=='info':
+  if not exists:
+   print('The specified LocalDB instance does not exist.')
+   sys.exit(int(os.getenv('HR_MOCK_MISSING_INFO_EXIT','1')))
+  print('Name: HRDashboard2025\r\nVersion: '+os.getenv('HR_MOCK_VERSION','17.0.4025.3')+'\r\nState: Stopped', file=sys.stderr if os.getenv('HR_MOCK_INFO_STDERR')=='1' else sys.stdout)
  if args[0]=='create': Path(os.environ['HR_MOCK_STATE']).touch()
  sys.exit(0)
 if args and args[0]=='build' and 'tests/DatabaseValidation/DatabaseValidation.sqlproj' in args:
@@ -75,6 +81,23 @@ class DatabaseSetupTests(unittest.TestCase):
         result, calls = self.run_setup(HR_MOCK_HAS_INSTANCE='0')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(any(c['command'] == 'SqlLocalDB.exe' and c['args'] == ['create', 'HRDashboard2025', '17.0'] for c in calls))
+
+    def test_missing_instance_is_created_even_when_named_info_returns_zero(self):
+        result, calls = self.run_setup(HR_MOCK_HAS_INSTANCE='0', HR_MOCK_MISSING_INFO_EXIT='0')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any(c['args'] == ['info'] for c in calls))
+        self.assertTrue(any(c['args'] == ['create', 'HRDashboard2025', '17.0'] for c in calls))
+
+    def test_version_output_on_stderr_is_captured(self):
+        result, calls = self.run_setup(HR_MOCK_INFO_STDERR='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(c['args'][0] == 'create' for c in calls))
+
+    def test_existing_instance_names_are_matched_case_insensitively(self):
+        result, calls = self.run_setup(HR_MOCK_LIST_NAME='hrdashboard2025')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any(c['args'] == ['info'] for c in calls))
+        self.assertFalse(any(c['args'][0] == 'create' for c in calls))
 
     def test_existing_old_engine_stops_before_build_or_publication(self):
         result, calls = self.run_setup(HR_MOCK_VERSION='15.0.4382.1')

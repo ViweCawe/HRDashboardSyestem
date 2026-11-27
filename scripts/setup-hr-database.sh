@@ -19,14 +19,25 @@ for hr_command in dotnet SqlLocalDB.exe; do
     fi
 done
 
-if SqlLocalDB.exe info "$hr_instance" >/dev/null 2>&1; then
-    hr_instance_info="$(SqlLocalDB.exe info "$hr_instance")"
-    if ! printf '%s\n' "$hr_instance_info" | tr -d '\r' | grep -Eq '^[[:space:]]*Version:[[:space:]]+17\.'; then
-        echo "$hr_instance already exists but was not confirmed as version 17.x. Inspect it before proceeding; it will not be upgraded or deleted." >&2
-        exit 1
-    fi
-else
+# Enumerate names rather than interpreting `info <name>` exit status as existence.
+# Preserve output from both streams so a failed probe produces a useful diagnosis.
+if ! hr_instance_names="$(SqlLocalDB.exe info 2>&1)"; then
+    printf '%s\n' "$hr_instance_names" >&2
+    echo "Unable to list LocalDB instances. No database has been published." >&2
+    exit 1
+fi
+if ! printf '%s\n' "$hr_instance_names" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -Fxiq -- "$hr_instance"; then
     SqlLocalDB.exe create "$hr_instance" 17.0
+fi
+if ! hr_instance_info="$(SqlLocalDB.exe info "$hr_instance" 2>&1)"; then
+    printf '%s\n' "$hr_instance_info" >&2
+    echo "Unable to inspect $hr_instance. No database has been published." >&2
+    exit 1
+fi
+if ! printf '%s\n' "$hr_instance_info" | tr -d '\r' | grep -Eiq '^[[:space:]]*Version:[[:space:]]+17\.'; then
+    printf '%s\n' "$hr_instance_info" >&2
+    echo "Cannot confirm $hr_instance is SQL Server 2025 (17.x). The diagnostic output is shown above; the instance will not be upgraded or deleted." >&2
+    exit 1
 fi
 SqlLocalDB.exe start "$hr_instance"
 SqlLocalDB.exe info "$hr_instance"

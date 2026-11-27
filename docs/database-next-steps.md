@@ -88,3 +88,12 @@ successfully before the database workflow is treated as runtime-verified. Compil
 shell-script tests and the existence of the setup script are not proof of live SQL
 behaviour. No database on the user's computer is created until the user runs setup.
 If setup fails, keep its output and fix that specific failure before proceeding.
+
+## Instance-detection diagnostics
+
+The setup lists instance names with `SqlLocalDB.exe info`, then inspects the named
+instance. It does not treat a successful `info <name>` exit code alone as proof
+that the instance exists. Version output is captured from both stdout and stderr.
+If inspection fails or the engine cannot be confirmed as 17.x, the actual output
+is displayed and setup stops before publication. An existing instance is never
+deleted or automatically upgraded to bypass a version mismatch.
