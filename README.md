@@ -15,12 +15,26 @@ Hours and leave ingestion, Excel workbook parsing, dashboard charts and the rema
 
 ## Run locally
 
+For Windows Git Bash with SQL Server 2025 LocalDB installed, the database setup is:
+
+```bash
+bash scripts/setup-hr-database.sh
+```
+
+This uses a separate named `HRDashboard2025` instance, runs the real SQL checks in
+`HrDashboardTests_Local`, then publishes `HrDashboardDev` and configures only
+`HrConnection` if the checks pass. It leaves the default LocalDB instance and
+Identity connection unchanged. It does not create or grant application user roles.
+See [database setup](docs/database-next-steps.md) for the manual equivalent and
+validation limits. The original SSDT project can still be built/published in Visual Studio.
+
+
 1. Open `HrDashboardApp.slnx` in Visual Studio 2026 with .NET 10 and SQL Server Data Tools installed. The existing SQL project targets SQL Server 2025 (Sql170); publish to a compatible development instance. Review the publish script before deploying to an existing database.
 2. Build and publish `DashboardDatabase` to an HR database, for example `HrDashboardDev`. Do not let EF migrations manage the `hr` schema.
 3. Configure the connection strings with user secrets from the repository root:
 
    ```powershell
-   dotnet user-secrets set "ConnectionStrings:HrConnection" "Server=(localdb)\mssqllocaldb;Database=HrDashboardDev;Trusted_Connection=True;TrustServerCertificate=True" --project HrDashboard
+   dotnet user-secrets set "ConnectionStrings:HrConnection" "Server=(localdb)\HRDashboard2025;Database=HrDashboardDev;Trusted_Connection=True;TrustServerCertificate=True" --project HrDashboard
    ```
 
    The template's `DefaultConnection` remains the separate Identity database. For a full SQL Server instance replace the server name accordingly.

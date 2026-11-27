@@ -58,3 +58,10 @@ Visual Studio and CLI restores also discover this file from the solution root.
 Do not clear all global package caches or change package versions to fix an
 unmatched source mapping. If restore still fails, inspect the new error before
 choosing the next fix.
+
+## Database deployment tool
+
+`.config/dotnet-tools.json` pins the local `Microsoft.SqlPackage` command-line tool
+at version **170.6.60**. Restore it with `dotnet tool restore --configfile NuGet.Config`.
+This is deployment tooling, not an additional application package reference.
+The Git Bash database setup restores and invokes this local tool automatically.

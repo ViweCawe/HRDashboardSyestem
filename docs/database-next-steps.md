@@ -1,75 +1,90 @@
-# Database project: next steps after Phase 1 verification
+# Database project: SQL Server 2025 LocalDB setup
+
+The development machine has SQL Server 2019 and 2025 LocalDB binaries installed,
+but its automatic `MSSQLLocalDB` instance still uses SQL Server 2019. The project
+already targets Sql170 (SQL Server 2025). Keep that target and use a separate named
+instance, **HRDashboard2025**, created with version **17.0**.
+
+## Git Bash setup
+
+From the repository root:
+
+```bash
+git pull --ff-only
+bash scripts/setup-hr-database.sh
+```
+
+The script:
+
+1. Creates HRDashboard2025 with the installed 17.0 engine if it does not exist. If
+   an instance with that name exists, it verifies version 17.x before continuing.
+   Existing instances are not upgraded, stopped or deleted.
+2. Starts the named instance and restores the pinned local SqlPackage tool.
+3. Builds the same SQL sources through the portable validation project and builds
+   the real database-check console. The original SSDT project is preserved.
+4. Saves a deployment script and publishes the schema to HrDashboardTests_Local.
+5. Runs the real Dapper/stored-procedure checks with synthetic records. A failure
+   stops the script before development publication or connection configuration.
+6. Saves another deployment script and publishes the schema to HrDashboardDev.
+7. Sets ConnectionStrings:HrConnection in this application's local user secrets.
+
+The server and database names are fixed to local development/test targets. Possible
+data-loss blocking stays enabled, and objects outside the project are not dropped.
+Deployment SQL files are written to ignored `artifacts/database/`. Test data remains
+in HrDashboardTests_Local for inspection; the script does not copy it to development.
+Do not repurpose these fixed-name databases for real HR records.
+
+## Manual equivalent
+
+Create and start the new instance once:
+
+```bash
+SqlLocalDB.exe create HRDashboard2025 17.0
+SqlLocalDB.exe start HRDashboard2025
+SqlLocalDB.exe info HRDashboard2025
+```
+
+An existing HRDashboard2025 instance can be started and inspected without running
+create again. The reported version must start with 17.
+
+Build the database sources:
+
+```bash
+dotnet tool restore --configfile NuGet.Config
+dotnet build tests/DatabaseValidation/DatabaseValidation.sqlproj
+```
+
+The package is `tests/DatabaseValidation/bin/Debug/DatabaseValidation.dacpac`.
+Publish that package or the original SSDT project's output to the named SQL 2025
+instance. Run the disposable checks as described in
+`tests/HrDashboard.DatabaseChecks/README.md` before publishing development.
+The setup script includes SqlPackage invocations with Git Bash argument conversion
+explicitly disabled so `/Action:Publish` is passed correctly on Windows.
+
+## Connect the application
+
+The HR connection after successful setup is:
+
+```text
+Server=(localdb)\HRDashboard2025;Database=HrDashboardDev;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True
+```
+
+DefaultConnection and Identity remain separate. Apply the existing Identity
+migrations to its configured database if needed, create/confirm an account, then
+use `scripts/Grant-HrRole.sql` in the **Identity database** to grant HRAdmin or
+HRReader. The setup script does not grant privileges to an arbitrary account.
+
+Start the application and use the HRAdmin employee-import screen with the synthetic
+CSV example. Preserve source snapshot dates. Hours and leave ingestion are later slices.
 
 ## Verification boundary
 
-The application build and automated tests establish CSV-contract validation,
-import-service boundaries and HTTP route access policies. The portable SQL build
-checks SQL syntax and model relationships. The original SSDT project is preserved.
-Neither compilation nor mocked HTTP tests establish stored-procedure behaviour
-against a running database.
+`bash scripts/verify-phase-one.sh` runs the application tests and SQL model build.
+Those checks cover contracts, service boundaries, route access, SQL syntax and
+model relationships. They do not execute SQL Server.
 
-Run the repeatable checks from Git Bash in the repository:
-
-```bash
-bash scripts/verify-phase-one.sh
-```
-
-The separate database-check console must be run against a disposable database
-before considering the import workflow database-verified. It is not part of
-`dotnet test` and an unconfigured database is never counted as a passing SQL test.
-There is no GitHub Actions workflow yet; the documented checks are local checks.
-
-## 1. Identify the development SQL instance and version
-
-If using LocalDB, run these **read-only** commands in Git Bash:
-
-```bash
-SqlLocalDB.exe versions
-SqlLocalDB.exe info
-SqlLocalDB.exe info MSSQLLocalDB
-```
-
-If the utility or named instance is unavailable, use the server/instance you
-normally connect to in SSMS or Visual Studio instead. Obtain its SQL Server
-version with `SELECT @@VERSION;` in an existing query connection.
-
-The current SQL project targets Sql170 (SQL Server 2025). Align that target with
-the confirmed engine before publishing. Visual Studio 2026 itself does not prove
-which SQL Server engine or LocalDB version is installed. Do not enable an
-incompatible-platform override to avoid doing that check.
-
-## 2. Build and review the database model
-
-The hr schema already contains 24 tables, primary/foreign keys, uniqueness rules,
-filtered indexes and the employee import/query stored procedures. Review those
-objects in DashboardDatabase before changing the schema. Start with Person,
-Employment, EmployeeSnapshot and their import lineage; then hours and leave.
-
-Build DashboardDatabase in Visual Studio with SSDT, or build the same sources
-through `tests/DatabaseValidation/DatabaseValidation.sqlproj`. Review the generated
-publish script against the selected target. Use a new disposable database named
-`HrDashboardTests_<suffix>` for the first publication; keep Identity and real HR
-records separate.
-
-## 3. Publish the disposable database and run the behaviour checks
-
-Follow `tests/HrDashboard.DatabaseChecks/README.md`. Required results include:
-
-- One PersonId with separate EmploymentIds and new employee codes after reappointment.
-- A recycled code never merges different people or overlaps employment intervals.
-- An exact file/date reimport returns the original batch and cannot duplicate facts.
-- A later snapshot preserves the earlier history and reports the correct as-of job title.
-- A detected job-title change remains unconfirmed rather than automatically becoming a promotion.
-- Failed publication rolls back changes, and source validation errors block publication.
-- Same-date replacement and historical backfill remain blocked until reviewed workflows exist.
-
-## 4. Connect the application to the development HR database
-
-Only after the disposable checks pass, publish to the agreed development database,
-set ConnectionStrings:HrConnection with user secrets, and test a synthetic CSV via
-the HRAdmin import page. Existing DefaultConnection and Identity migrations remain
-separate. Review database permissions and the deployment diff before using actual
-HR exports.
-
-The immediate information needed to proceed is the development SQL instance name
-and engine version. No deployment has been performed by these verification steps.
+The setup script's database-check console must print its PASS results and finish
+successfully before the database workflow is treated as runtime-verified. Compilation,
+shell-script tests and the existence of the setup script are not proof of live SQL
+behaviour. No database on the user's computer is created until the user runs setup.
+If setup fails, keep its output and fix that specific failure before proceeding.

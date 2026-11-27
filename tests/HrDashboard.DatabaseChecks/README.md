@@ -6,7 +6,7 @@ These checks perform writes and deliberately leave synthetic rows for inspection
 2. In **Git Bash**, set the test connection and run:
 
    ```bash
-   export HR_TEST_CONNECTION='Server=(localdb)\mssqllocaldb;Database=HrDashboardTests_Local;Trusted_Connection=True;TrustServerCertificate=True'
+   export HR_TEST_CONNECTION='Server=(localdb)\HRDashboard2025;Database=HrDashboardTests_Local;Trusted_Connection=True;TrustServerCertificate=True'
    dotnet run --project tests/HrDashboard.DatabaseChecks
    ```
 
