@@ -46,3 +46,5 @@ dotnet build tests/DatabaseValidation/DatabaseValidation.sqlproj -p:UseTaskHostF
 Database behaviour checks require a separately published, disposable SQL database. See `tests/HrDashboard.DatabaseChecks/README.md`. Successful model compilation does not establish runtime import behaviour.
 
 Read [architecture](docs/architecture.md), [database rules](docs/database.md), and [the employee CSV contract](docs/employee-import.md) before extending the implementation.
+
+Package references are already included. See [packages and restore troubleshooting](docs/packages.md) for the package inventory and Git Bash steps to resolve NU1100 source-mapping errors using the repository's `NuGet.Config`.
